@@ -424,6 +424,10 @@ function toast(msg, { err = false, output = '' } = {}) {
 }
 $('#toast').addEventListener('click', () => $('#toast').classList.remove('show'));
 
+function showPeek(j) {
+  if (!j || !j.image) return;
+  openSheet(`<h3>👀 ${esc(j.msg.replace(/^👀 /, ''))}</h3><img src="${j.image}" alt="Screenshot of the session" style="width:100%;border-radius:14px;display:block">`);
+}
 async function act(body) {
   buzz(12);
   try {
@@ -473,12 +477,12 @@ $('#root').innerHTML = `
       <div class="xp"><i id="xp"></i></div><div class="xplbl" id="xpl"></div>
     </section>
     <section class="card">
-      <h2>5-hour window</h2>
+      <h2>Session limit <span class="count" id="src">estimate</span></h2>
       <div class="ringwrap">
         <div class="ring">
           <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="14"/>
             <circle class="fill" id="ringFill" cx="60" cy="60" r="50" fill="none" stroke-width="14" stroke-dasharray="314.16" stroke-dashoffset="314.16"/></svg>
-          <div class="center"><div class="pct" id="pct">0%</div><div class="lbl">of budget</div></div>
+          <div class="center"><div class="pct" id="pct">0%</div><div class="lbl" id="ringLbl">of budget</div></div>
         </div>
         <div class="stats">
           <div class="stat"><b id="sBlock">$0</b><span>this window</span></div>
@@ -488,6 +492,7 @@ $('#root').innerHTML = `
         </div>
       </div>
       <div class="reset"><span id="resetIn">no active window</span><span id="msgs"></span></div>
+      <div class="speed" id="weekRow" hidden><span>📅</span><div class="meter"><i id="weekBar"></i></div><span id="weekLbl"></span></div>
       <div class="speed"><span>⚡</span><div class="meter"><i id="speed"></i></div><span id="speedLbl">0 tok/min</span></div>
       <div class="bars" id="bars"></div>
       <div class="barlbl"><span>24h ago</span><span>output tokens / hour</span><span>now</span></div>
@@ -591,7 +596,7 @@ function openSettings() {
   const ntfyLink = n.enabled ? `${n.server}/${n.topic}` : '';
   openSheet(`<h3>⚙️ Settings</h3><div class="set">
     <label>5h budget <input type="range" id="budget" min="5" max="300" step="5" value="${cfg.budget || 40}"><b id="budgetV">$${cfg.budget || 40}</b></label>
-    <div class="hint">What counts as 100% of the ring. Tune it until the ring fills up about when you actually hit your limit.</div>
+    <div class="hint">Only used when your real plan limits can't be read. What counts as 100% of the ring. Tune it until the ring fills up about when you actually hit your limit.</div>
     <label>Push to phone (ntfy) <button class="toggle${n.enabled ? ' on' : ''}" id="ntfyT" aria-label="Toggle push"></button></label>
     <div class="hint">${n.enabled ? `Install the free <b>ntfy</b> app and subscribe to <a href="${esc(ntfyLink)}" target="_blank">${esc(ntfyLink)}</a>, or open that link. You'll get pinged when a Claude finishes or needs you. The topic name is the password, so keep it private.` : 'Sends “Claude is done / needs you” pings through ntfy.sh, so they arrive even when this page is closed.'}</div>
     <div><h2 style="margin-bottom:8px">Quick prompts</h2><div class="medit" id="medit"></div></div>
@@ -633,7 +638,7 @@ $('#sheet').addEventListener('click', e => {
 // ---------- sessions ----------
 const SESSION_KEYS = [
   { k: 'focus', e: '👀', l: 'Focus', a: pid => ({ type: 'focus', pid }) },
-  { k: 'yes', e: '✅', l: 'Yes (1)', a: pid => ({ type: 'key', pid, key: '1' }) },
+  { k: 'peek', e: '📸', l: 'Peek', a: pid => ({ type: 'peek', pid }) },
   { k: 'go', e: '▶️', l: 'Continue', a: pid => ({ type: 'send', pid, text: 'continue' }) },
   { k: 'stop', e: '✋', l: 'Stop', a: pid => ({ type: 'key', pid, key: 'escape' }) },
   { k: 'compact', e: '🗜️', l: '/compact', a: pid => ({ type: 'send', pid, text: '/compact' }) },
@@ -663,6 +668,7 @@ function sessionCard(s) {
       <div class="feed"></div>
     </div></div>`;
   $('.pending', el).addEventListener('click', e => {
+    if (e.target.closest('[data-peek]')) return act({ type: 'peek', pid: +el.dataset.pid }).then(showPeek);
     const b = e.target.closest('button[data-key]'); if (!b) return;
     act({ type: 'key', pid: +el.dataset.pid, key: b.dataset.key }).then(j => j && hearts(b, 3, ['✅', '✨']));
   });
@@ -692,7 +698,7 @@ function sessionCard(s) {
   $('.keys', el).addEventListener('click', e => {
     const k = e.target.closest('.key'); if (!k) return;
     pressFx(k, e);
-    act(SESSION_KEYS.find(x => x.k === k.dataset.k).a(+el.dataset.pid));
+    act(SESSION_KEYS.find(x => x.k === k.dataset.k).a(+el.dataset.pid)).then(showPeek);
   });
   $('.say', el).addEventListener('submit', async e => {
     e.preventDefault();
@@ -720,13 +726,18 @@ async function loadFeed(el) {
   setTimeout(() => loadFeed(el), 3000);
 }
 function renderPending(el, s) {
-  const box = $('.pending', el), p = s.pending;
+  const box = $('.pending', el);
+  const p = s.pending || (s.status === 'waiting' ? { id: 'generic', name: 'generic' } : null);
   if (!p) { box.hidden = true; box.dataset.id = ''; return; }
   if (box.dataset.id === p.id) return; // don't rebuild under the user's finger
   box.dataset.id = p.id; box.hidden = false;
   const opt = (key, label) => `<button data-key="${key}"><b>${key}</b><span>${esc(label)}</span></button>`;
   let html;
-  if (p.name === 'AskUserQuestion' && p.questions?.length) {
+  if (p.name === 'generic') {
+    html = `<div class="hd">🙋 Claude needs you</div><div class="q">It's waiting on a question or permission prompt. Peek at it, then pick an option.</div>
+      <div class="opts"><button data-peek="1"><b>👀</b><span>Peek at the screen</span></button>${opt(1, 'Option 1 / Yes')}${opt(2, 'Option 2')}${opt(3, 'Option 3 / No')}${opt(4, 'Option 4')}</div>
+      <div class="keys" style="grid-template-columns:1fr 1fr">${['enter', 'escape'].map(k => `<button class="key" data-key="${k}"><span class="e">${k === 'enter' ? '⏎' : '✋'}</span><span class="l">${k === 'enter' ? 'Enter' : 'Esc'}</span></button>`).join('')}</div>`;
+  } else if (p.name === 'AskUserQuestion' && p.questions?.length) {
     const q = p.questions[0];
     html = `<div class="hd">🙋 ${esc(q.header || 'Question')}${p.questions.length > 1 ? ` · 1 of ${p.questions.length}` : ''}</div><div class="q">${esc(q.question)}</div>
       <div class="opts">${q.options.map((o, i) => opt(i + 1, o)).join('')}</div>`;
@@ -805,9 +816,22 @@ function renderSessions(list) {
 }
 
 // ---------- usage ----------
-function renderUsage(u) {
+function planPct(st) { const s = st.plan && st.plan.session; return s ? s.pct / 100 : null; }
+function renderUsage(u, plan) {
   const b = u.block;
-  const pct = b.budget ? Math.min(1, b.cost / b.budget) : 0;
+  const live = plan && plan.session;
+  const pct = live ? Math.min(1, live.pct / 100) : b.budget ? Math.min(1, b.cost / b.budget) : 0;
+  const resetAt = live ? live.resetsAt : b.end;
+  $('#src').textContent = live ? 'live' : 'estimate';
+  $('#src').title = live ? 'Real numbers from your Claude plan' : (plan && plan.error) || 'Estimated from transcripts';
+  $('#ringLbl').textContent = live ? 'used' : 'of budget';
+  const w = plan && plan.weekly;
+  $('#weekRow').hidden = !w;
+  if (w) {
+    $('#weekBar').style.width = w.pct + '%';
+    $('#weekBar').style.background = w.pct > 85 ? 'var(--red)' : w.pct > 60 ? 'var(--amber)' : '';
+    $('#weekLbl').textContent = `week ${w.pct}% · resets ${new Date(w.resetsAt).toLocaleDateString('en', { weekday: 'short' })}`;
+  }
   $('#ringFill').style.strokeDashoffset = 314.16 * (1 - pct);
   $('#ringFill').style.stroke = pct > .85 ? 'var(--red)' : pct > .6 ? 'var(--amber)' : 'var(--clay)';
   $('#pct').textContent = Math.round(pct * 100) + '%';
@@ -815,7 +839,7 @@ function renderUsage(u) {
   $('#sToday').textContent = fmtUsd(u.today.cost);
   $('#sOut').textContent = fmtTok(u.today.out);
   $('#sWeek').textContent = fmtUsd(u.week.cost);
-  $('#resetIn').textContent = b.end ? `⏳ resets in ${dur(b.end - Date.now())}` : '😴 no active window';
+  $('#resetIn').textContent = resetAt && resetAt > Date.now() ? `⏳ resets in ${dur(resetAt - Date.now())}` : '😴 no active window';
   $('#msgs').textContent = b.msgs ? `${b.msgs} msgs · ${fmtTok(b.in + b.out + b.cw + b.cr)} tok` : '';
   const max = Math.max(1, ...u.hourly);
   const bars = $('#bars');
@@ -896,7 +920,7 @@ let lastTimer = null;
 function renderHero(st) {
   const sessions = st.sessions, busy = sessions.filter(s => statusOf(s) === 'busy');
   const waiting = sessions.filter(s => statusOf(s) === 'waiting');
-  const pct = st.usage.block.budget ? st.usage.block.cost / st.usage.block.budget : 0;
+  const pct = planPct(st) ?? (st.usage.block.budget ? st.usage.block.cost / st.usage.block.budget : 0);
   let svg = $('#hero svg');
   const mood = !sessions.length ? 'sleep' : busy.length ? 'busy' : waiting.length ? 'waiting' : null;
   setMood(svg, mood);
@@ -919,7 +943,7 @@ function connect() {
     lastMsg = Date.now();
     const st = JSON.parse(ev.data);
     $('#conn').classList.add('on'); $('#host').textContent = st.host;
-    renderUsage(st.usage); renderSessions(st.sessions); renderHero(st);
+    renderUsage(st.usage, st.plan); renderSessions(st.sessions); renderHero(st);
     renderVitals(st.vitals); renderServers(st.servers || []); renderTimer(st.timer);
   };
   es.onerror = () => { $('#conn').classList.remove('on'); $('#host').textContent = 'reconnecting…'; };

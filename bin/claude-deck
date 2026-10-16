@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Start Claude Deck (if not running) and open the pairing page
 cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
+umask 077
 if ! pgrep -f '^node server.js' >/dev/null; then
   nohup node server.js > "$HOME/.cache/claude-deck.log" 2>&1 &
   sleep 2

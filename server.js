@@ -249,7 +249,37 @@ function hyprClients() {
   }));
 }
 const cleanTitle = t => (t || '').replace(/^[^\p{L}\p{N}~/]+/u, '').trim();
+// Claude Code prefixes its terminal title with a spinner/✳ glyph; plain shells don't
+const looksLikeClaude = t => /^[^\p{L}\p{N}\s~/]\s/u.test(t || '');
 const INTERACTIVE = ['AskUserQuestion', 'ExitPlanMode'];
+const winFirstSeen = new Map(); // window address -> first time we saw it
+const pidWin = new Map();       // pid -> window address, once matched
+
+// Titles are the only link between a session and its terminal window (Ghostty runs every window in one process).
+// Exact title match wins; then a remembered match; then leftover Claude-looking windows are paired with
+// leftover sessions in the order they appeared (covers brand-new sessions that have no AI title yet).
+function assignWindows(sessions, clients) {
+  const now = Date.now();
+  for (const c of clients) if (!winFirstSeen.has(c.address)) winFirstSeen.set(c.address, now);
+  for (const a of winFirstSeen.keys()) if (!clients.some(c => c.address === a)) winFirstSeen.delete(a);
+  const byAddr = new Map(clients.map(c => [c.address, c]));
+  const taken = new Set();
+  const give = (s, c) => { s.window = { address: c.address, workspace: c.workspace && c.workspace.name }; taken.add(c.address); pidWin.set(s.pid, c.address); };
+  for (const s of sessions) {
+    const c = s.hasTitle && clients.find(c => !taken.has(c.address) && cleanTitle(c.title) === s.title);
+    if (c) give(s, c);
+  }
+  for (const s of sessions) {
+    if (s.window) continue;
+    const c = byAddr.get(pidWin.get(s.pid));
+    if (c && !taken.has(c.address) && looksLikeClaude(c.title)) give(s, c);
+  }
+  const leftS = sessions.filter(s => !s.window).sort((a, b) => a.startedAt - b.startedAt);
+  const leftW = clients.filter(c => !taken.has(c.address) && looksLikeClaude(c.title))
+    .sort((a, b) => winFirstSeen.get(a.address) - winFirstSeen.get(b.address));
+  leftS.forEach((s, i) => { if (leftW[i]) give(s, leftW[i]); });
+  for (const pid of pidWin.keys()) if (!sessions.some(s => s.pid === pid)) pidWin.delete(pid);
+}
 
 async function liveSessions() {
   let names = [];
@@ -263,23 +293,23 @@ async function liveSessions() {
     let info = {};
     if (file) { try { info = scanFile(file, fs.statSync(file)).info; } catch {} }
     const title = info.customTitle || info.aiTitle || null;
-    const win = title && clients.find(c => cleanTitle(c.title) === title);
     const p = info.pending;
     // a pending tool is waiting on you if it's a question/plan, or a normal tool that stalled while the session went idle (permission prompt)
     const needsYou = !!p && (INTERACTIVE.includes(p.name) || (s.status !== 'busy' && Date.now() - p.at > 2000 && Date.now() - p.at < 3600e3));
     out.push({
       pid: s.pid, sessionId: s.sessionId, cwd: s.cwd, project: path.basename(s.cwd) || '~',
-      title: title || s.name || `session ${s.pid}`,
+      title: title || 'New session ✨', hasTitle: !!title,
       status: needsYou ? 'waiting' : (s.status || 'idle'), statusSince: s.statusUpdatedAt || s.updatedAt || s.startedAt,
       startedAt: s.startedAt, version: s.version,
       model: info.model || null, context: info.context || 0,
       activity: info.activity || null, activityAt: info.activityAt || null,
       lastPrompt: info.lastPrompt || null, lastReply: info.lastReply || null,
       pending: needsYou ? p : null,
-      window: win ? { address: win.address, workspace: win.workspace && win.workspace.name } : null,
+      window: null,
     });
   }
   out.sort((a, b) => a.startedAt - b.startedAt);
+  assignWindows(out, clients);
   return out;
 }
 
@@ -387,16 +417,49 @@ function refreshServers() {
   });
 }
 
+// ---------- real plan limits ----------
+// The same endpoint Claude Code's /usage reads, called with your own Claude login from ~/.claude/.credentials.json.
+// Claude Code refreshes that token itself; if it's expired we just fall back to the transcript estimate.
+let plan = null; // { session: {pct, resetsAt, severity}, weekly: {...}, fetchedAt } or { error }
+async function refreshPlan() {
+  let tok;
+  try { tok = JSON.parse(fs.readFileSync(path.join(CLAUDE, '.credentials.json'), 'utf8')).claudeAiOauth.accessToken; }
+  catch { plan = { error: 'not logged in with a Claude plan' }; return; }
+  try {
+    const r = await fetch('https://api.anthropic.com/api/oauth/usage', {
+      headers: { Authorization: `Bearer ${tok}`, 'anthropic-beta': 'oauth-2025-04-20' }, signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) { plan = { ...(plan || {}), error: `usage API said ${r.status}` }; return; }
+    const d = await r.json();
+    const pick = (lim, fallback) => {
+      const l = (d.limits || []).find(x => x.kind === lim) || null;
+      const f = fallback && d[fallback];
+      if (l) return { pct: l.percent, resetsAt: Date.parse(l.resets_at), severity: l.severity };
+      if (f) return { pct: Math.round(f.utilization), resetsAt: Date.parse(f.resets_at), severity: null };
+      return null;
+    };
+    plan = { session: pick('session', 'five_hour'), weekly: pick('weekly_all', 'seven_day'), fetchedAt: Date.now() };
+  } catch (e) { plan = { ...(plan || {}), error: e.message }; }
+}
+
 // ---------- notifications ----------
 function notify(title, body, tags = 'orange_heart') {
   execFile('notify-send', ['-a', 'Claude Deck', title, body], () => {});
   if (!config.ntfy.enabled || !config.ntfy.topic) return;
   fetch(`${config.ntfy.server}/${config.ntfy.topic}`, {
     method: 'POST', body,
-    headers: { Title: Buffer.from(title).toString('latin1') === title ? title : 'Claude Deck', Tags: tags, Click: lanUrls()[0] || '' },
+    headers: { Title: Buffer.from(title).toString('latin1') === title ? title : 'Claude Deck', Tags: tags, Click: (lanUrls()[0] || '').replace(/\?t=.*/, '') },
   }).catch(e => console.error('ntfy failed:', e.message));
 }
 const lastStatus = new Map();
+let lastPlanPct = null;
+function watchPlan() {
+  const p = plan && plan.session && plan.session.pct;
+  if (p == null) return;
+  if (lastPlanPct === null || p < lastPlanPct) { lastPlanPct = p; return; } // no alert on startup or after a reset
+  for (const mark of [80, 95]) if (lastPlanPct < mark && p >= mark) notify(`🌶️ Session limit at ${p}%`, `Resets ${new Date(plan.session.resetsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, 'hot_pepper');
+  lastPlanPct = p;
+}
 function watchTransitions(sessions) {
   for (const s of sessions) {
     const was = lastStatus.get(s.pid);
@@ -428,8 +491,34 @@ async function focus(pid, strict = false) {
   }
   return s;
 }
+// Typing long text with wtype races Claude Code's TUI (dropped/reordered characters), so paste it instead:
+// save the clipboard, paste with shift+insert, press Enter, then put the clipboard back.
+const { spawn } = require('child_process');
+function readClipboard() {
+  return new Promise(res => execFile('wl-paste', ['--list-types'], { timeout: 1000 }, (e, types) => {
+    const type = !e && types.split('\n').find(Boolean);
+    if (!type) return res(null);
+    execFile('wl-paste', ['--no-newline', '--type', type], { encoding: 'buffer', timeout: 2000, maxBuffer: 64 << 20 }, (e2, data) => res(e2 ? null : { type, data }));
+  }));
+}
+function writeClipboard(data, type) {
+  return new Promise(res => {
+    const p = spawn('wl-copy', type ? ['--type', type] : [], { stdio: ['pipe', 'ignore', 'ignore'] });
+    p.on('error', () => res(false));
+    p.stdin.end(data, () => setTimeout(() => res(true), 80));
+  });
+}
+async function pasteText(text) {
+  const saved = await readClipboard();
+  await writeClipboard(text, 'text/plain;charset=utf-8');
+  // one wtype process for paste + Enter: back-to-back wtype runs swap virtual keymaps and Hyprland
+  // can decode a key with the stale one (Return arriving as a stray letter)
+  await run('wtype', ['-s', '120', '-M', 'shift', '-k', 'Insert', '-m', 'shift', '-s', '300', '-k', 'Return']);
+  await sleep(200);
+  if (saved) await writeClipboard(saved.data, saved.type);
+}
 const KEYS = {
-  escape: ['-k', 'Escape'], enter: ['-k', 'Return'], up: ['-k', 'Up'], down: ['-k', 'Down'], tab: ['-k', 'Tab'], space: ['-k', 'space'],
+  escape: ['-k', 'Escape'], backspace: ['-k', 'BackSpace'], enter: ['-k', 'Return'], up: ['-k', 'Up'], down: ['-k', 'Down'], tab: ['-k', 'Tab'], space: ['-k', 'space'],
   'shift-tab': ['-M', 'shift', '-k', 'Tab', '-m', 'shift'], 'ctrl-c': ['-M', 'ctrl', 'c', '-m', 'ctrl'],
 };
 for (let i = 1; i <= 9; i++) KEYS[i] = [String(i)];
@@ -441,15 +530,27 @@ async function doAction(a) {
       const text = String(a.text || '').slice(0, 4000);
       if (!text) throw new Error('nothing to send');
       await focus(a.pid, true);
-      await run('wtype', ['--', text]);
-      await sleep(60);
-      await run('wtype', ['-k', 'Return']);
+      await pasteText(text);
       return { ok: true, msg: 'Sent 💌' };
     }
     case 'key': {
       const k = KEYS[a.key]; if (!k) throw new Error('unknown key');
-      await focus(a.pid, true); await run('wtype', k);
+      await focus(a.pid, true); await run('wtype', ['-s', '120', ...k]);
       return { ok: true, msg: 'Pressed ' + a.key };
+    }
+    case 'peek': {
+      // screenshot the session's window so you can read a prompt from the phone, then hand focus back
+      if (await locked()) throw new Error('laptop is locked 🔒 — unlock it first');
+      const prev = JSON.parse(await run('hyprctl', ['activewindow', '-j']) || '{}').address;
+      const s = await focus(a.pid);
+      await sleep(350); // let the workspace switch animation finish
+      const c = (await hyprClients()).find(c => c.address === s.window.address);
+      if (!c) throw new Error('window disappeared');
+      const geom = `${c.at[0]},${c.at[1]} ${c.size[0]}x${c.size[1]}`;
+      const img = await new Promise((res, rej) => execFile('grim', ['-g', geom, '-s', '0.75', '-t', 'jpeg', '-q', '75', '-'],
+        { encoding: 'buffer', timeout: 5000, maxBuffer: 32 << 20 }, (e, out) => e ? rej(new Error('screenshot failed')) : res(out)));
+      if (prev && prev !== s.window.address) await run('hyprctl', ['dispatch', 'focuswindow', `address:${prev}`]).catch(() => {});
+      return { ok: true, msg: '👀 ' + s.title, image: 'data:image/jpeg;base64,' + img.toString('base64') };
     }
     case 'git': {
       const s = (await liveSessions()).find(x => x.pid === a.pid);
@@ -460,7 +561,8 @@ async function doAction(a) {
     case 'new-session': {
       // only known project dirs: the path ends up in a shell command line
       const dir = (projects().find(p => p.path === a.cwd) || { path: HOME }).path;
-      await run('hyprctl', ['dispatch', 'exec', `ghostty --working-directory=${JSON.stringify(dir)} -e ${config.claudeCommand}`]);
+      const sq = v => `'${v.replace(/'/g, `'\\''`)}'`; // single-quote for the shell hyprctl exec runs
+      await run('hyprctl', ['dispatch', 'exec', `ghostty --working-directory=${sq(dir)} -e ${config.claudeCommand}`]);
       return { ok: true, msg: '✨ New Claude in ' + path.basename(dir) };
     }
     case 'deck': {
@@ -516,9 +618,9 @@ async function tick() {
   try {
     scanAll();
     const sessions = await liveSessions();
-    watchTransitions(sessions);
+    watchTransitions(sessions); watchPlan();
     if (timer && Date.now() >= timer.end) { notify('🍅 Timer done!', `${timer.label} (${timer.minutes} min) — take a break`, 'tomato'); timer = null; }
-    state = { t: Date.now(), host: os.hostname(), sessions, usage: usageStats(), vitals: vitals(), servers, timer };
+    state = { t: Date.now(), host: os.hostname(), sessions, usage: usageStats(), plan, vitals: vitals(), servers, timer };
     const data = `data: ${JSON.stringify(state)}\n\n`;
     for (const res of clients) res.write(data);
   } catch (e) { console.error('tick failed:', e); }
@@ -529,9 +631,12 @@ async function tick() {
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 const isLocal = req => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
 const authed = (req, url) => {
-  const t = req.headers['x-deck-token'] || url.searchParams.get('t') || '';
-  return t.length === config.token.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(config.token));
+  const a = Buffer.from(String(req.headers['x-deck-token'] || url.searchParams.get('t') || ''));
+  const b = Buffer.from(config.token);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
+// /api/pair hands out the token, so only answer the laptop itself under a localhost Host header (blocks DNS rebinding)
+const isLocalHost = req => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '') && !req.headers.origin;
 function lanUrls() {
   return Object.values(os.networkInterfaces()).flat()
     .filter(i => i && i.family === 'IPv4' && !i.internal && !/^172\.(1[6-9]|2\d|3[01])\./.test(i.address))
@@ -546,10 +651,14 @@ function readBody(req) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => handle(req, res).catch(e => {
+  console.error('request failed:', e);
+  if (!res.headersSent) json(res, 500, { error: 'server error' }); else res.end();
+}));
+async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/api/pair') {
-    if (!isLocal(req)) return json(res, 403, { error: 'open /pair on the laptop itself' });
+    if (!isLocal(req) || !isLocalHost(req)) return json(res, 403, { error: 'open http://localhost:' + config.port + '/pair on the laptop itself' });
     return json(res, 200, { urls: lanUrls() });
   }
   if (url.pathname.startsWith('/api/')) {
@@ -583,13 +692,14 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache' });
     res.end(data);
   });
-});
+}
 
 console.log('🧡 Claude Deck: scanning transcripts…');
 const t0 = Date.now();
 scanAll();
 console.log(`   ${files.size} transcripts, ${seenKeys.size} messages over ${daily.size} days in ${Date.now() - t0}ms`);
 refreshServers(); setInterval(refreshServers, 5000);
+refreshPlan(); setInterval(refreshPlan, 60_000);
 tick();
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`\n   Pair your phone: open http://localhost:${config.port}/pair on this laptop and scan the QR`);
