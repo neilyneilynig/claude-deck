@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Claude Deck</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Claude Deck">
+<meta name="theme-color" content="#1c1714">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fbf6ef; --bg2: #f3eadf; --card: #ffffff; --ink: #2c211b; --muted: #8a7a6e; --line: #ecdfd2;
+  --clay: #d97757; --clay2: #e8977a; --peach: #fde3d6; --blush: #f4a3a0;
+  --green: #5dbb7a; --amber: #e6a23c; --red: #e05d5d;
+  --key: #2a221d; --key-ink: #fff4ec; --shadow: 0 1px 0 rgba(0,0,0,.04), 0 8px 24px -12px rgba(120,70,40,.25);
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1c1714; --bg2: #241d19; --card: #2a221d; --ink: #fbefe6; --muted: #a8968a; --line: #3a2f28;
+  --peach: #4a2c20; --key: #120e0c; --key-ink: #fff4ec; --shadow: 0 1px 0 rgba(255,255,255,.03), 0 10px 30px -14px rgba(0,0,0,.7);
+}}
+:root[data-theme="dark"] {
+  --bg: #1c1714; --bg2: #241d19; --card: #2a221d; --ink: #fbefe6; --muted: #a8968a; --line: #3a2f28;
+  --peach: #4a2c20; --key: #120e0c; --key-ink: #fff4ec; --shadow: 0 1px 0 rgba(255,255,255,.03), 0 10px 30px -14px rgba(0,0,0,.7);
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body {
+  font-family: Nunito, ui-rounded, "SF Pro Rounded", system-ui, sans-serif; font-weight: 700;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  min-height: 100dvh; overflow-x: hidden; user-select: none; -webkit-user-select: none;
+}
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; max-width: 1400px; margin: 0 auto; }
+.col > * { min-width: 0; }
+@media (min-width: 900px) {
+  .app { grid-template-columns: minmax(300px, 380px) 1fr minmax(260px, 340px); align-items: start; }
+  .col { position: sticky; top: 16px; }
+}
+.col { display: grid; gap: 16px; }
+.card { background: var(--card); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 0 0 12px; font-weight: 900; display: flex; align-items: center; gap: 8px; }
+h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; padding: 1px 8px; letter-spacing: 0; }
+
+/* ---------- hero ---------- */
+.hero { text-align: center; padding: 22px 18px 18px; position: relative; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, var(--peach) 0%, var(--card) 70%); }
+.hero .mascot { width: 168px; height: 168px; margin: 4px auto 0; display: block; cursor: pointer; touch-action: manipulation; }
+.bubble { display: inline-block; margin-top: 8px; background: var(--card); border: 2px solid var(--line); border-radius: 18px;
+  padding: 8px 14px; font-weight: 800; font-size: 16px; position: relative; max-width: 100%; transition: transform .3s; }
+.bubble::before { content: ""; position: absolute; top: -9px; left: 50%; transform: translateX(-50%) rotate(45deg);
+  width: 14px; height: 14px; background: var(--card); border-left: 2px solid var(--line); border-top: 2px solid var(--line); }
+.bubble.pop { animation: pop .45s cubic-bezier(.3,1.6,.5,1); }
+.topbar { position: absolute; top: 12px; left: 14px; right: 14px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--muted); }
+.conn { display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+.conn.on .dot { background: var(--green); box-shadow: 0 0 0 0 var(--green); animation: ping 2s infinite; }
+.iconbtn { width: 32px; height: 32px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); font-size: 15px; display: grid; place-items: center; }
+
+/* ---------- mascot ---------- */
+.mascot { overflow: visible; }
+.mascot .whole { transform-box: view-box; transform-origin: 0 20px; animation: bob 2.6s ease-in-out infinite; }
+.mascot .rays { transform-box: view-box; transform-origin: 0 0; transition: transform .4s; }
+.mascot .ray { fill: var(--clay); }
+.mascot .core { fill: var(--clay); }
+.mascot .face { transition: transform .25s ease-out; }
+.mascot .eye { fill: #2c1d16; transform-box: fill-box; transform-origin: center; animation: blink 4.2s infinite; }
+.mascot .shine { fill: #fff; }
+.mascot .cheek { fill: var(--blush); opacity: .8; }
+.mascot .mouth { fill: none; stroke: #2c1d16; stroke-width: 2.2; stroke-linecap: round; }
+.mascot .mouth-o { fill: #2c1d16; display: none; }
+.mascot .zzz, .mascot .sweat, .mascot .sparkles { display: none; }
+.mascot.busy .rays { animation: spin var(--spin, 2.8s) linear infinite; }
+.mascot.busy .mouth { display: none; }
+.mascot.busy .mouth-o { display: block; animation: chomp .5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+.mascot.busy .sparkles { display: block; }
+.mascot.busy .whole { animation-duration: 1.1s; }
+.mascot.sleep .eye { animation: none; transform: scaleY(.14); }
+.mascot.sleep .shine { display: none; }
+.mascot.sleep .zzz { display: block; }
+.mascot.sleep .whole { animation-duration: 4.5s; }
+.mascot.sleep .rays { transform: scale(.92); }
+.mascot.stressed .sweat { display: block; animation: drip 1.6s ease-in infinite; }
+.mascot.waiting .whole { animation: wiggle .5s ease-in-out infinite; }
+.mascot.happy .whole { animation: jump .7s cubic-bezier(.3,1.5,.5,1); }
+.mascot.happy .eye { animation: none; transform: scaleY(.25) translateY(-4px); }
+.mascot.squish .whole { animation: squish .5s cubic-bezier(.3,1.6,.5,1); }
+.zzz text { fill: var(--muted); font-weight: 900; animation: zz 3s ease-in-out infinite; opacity: 0; }
+.zzz text:nth-child(2) { animation-delay: 1s; } .zzz text:nth-child(3) { animation-delay: 2s; }
+.sparkles path { fill: #f6c85f; transform-box: fill-box; transform-origin: center; animation: twinkle 1.2s ease-in-out infinite; }
+.sparkles path:nth-child(2) { animation-delay: .4s; } .sparkles path:nth-child(3) { animation-delay: .8s; }
+.sweat { fill: #8fc7ef; }
+
+@keyframes bob { 50% { transform: translateY(-4px) } }
+@keyframes spin { to { transform: rotate(360deg) } }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1) } 96% { transform: scaleY(.1) } }
+@keyframes chomp { to { transform: scale(.7, .45) } }
+@keyframes wiggle { 0%,100% { transform: rotate(-6deg) } 50% { transform: rotate(6deg) } }
+@keyframes jump { 0% { transform: translateY(0) scale(1) } 30% { transform: translateY(-22px) scale(1.06, .94) } 60% { transform: translateY(0) scale(1.12, .86) } 100% { transform: none } }
+@keyframes squish { 0% { transform: scale(1) } 30% { transform: scale(1.25, .78) } 60% { transform: scale(.9, 1.12) } 100% { transform: scale(1) } }
+@keyframes zz { 0% { opacity: 0; transform: translate(0, 0) } 30% { opacity: 1 } 100% { opacity: 0; transform: translate(10px, -22px) } }
+@keyframes twinkle { 0%,100% { transform: scale(.3); opacity: .2 } 50% { transform: scale(1); opacity: 1 } }
+@keyframes drip { 0% { transform: translateY(0); opacity: 1 } 100% { transform: translateY(10px); opacity: 0 } }
+@keyframes pop { 0% { transform: scale(.85) } 100% { transform: scale(1) } }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(93,187,122,.6) } 100% { box-shadow: 0 0 0 8px rgba(93,187,122,0) } }
+@keyframes rise { to { transform: translate(var(--dx), -140px) scale(.6); opacity: 0 } }
+@keyframes cardIn { from { transform: translateY(14px) scale(.96); opacity: 0 } }
+@keyframes glow { 50% { box-shadow: 0 0 0 4px rgba(217,119,87,.18), var(--shadow) } }
+@keyframes flash { 0% { background: var(--peach) } 100% { background: var(--card) } }
+.heart { position: absolute; pointer-events: none; font-size: 22px; animation: rise 1.4s ease-out forwards; z-index: 5; }
+
+/* ---------- usage ---------- */
+.ringwrap { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 16px; align-items: center; }
+.ring { position: relative; width: 132px; height: 132px; }
+.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring .track { stroke: var(--bg2); }
+.ring .fill { stroke: var(--clay); stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.3,1,.4,1), stroke .5s; }
+.ring .center { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.ring .pct { font-size: 30px; font-weight: 900; line-height: 1; }
+.ring .lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stat { background: var(--bg2); border-radius: 16px; padding: 10px 12px; }
+.stat b { display: block; font-size: clamp(16px, 4.6vw, 20px); font-weight: 900; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11px; color: var(--muted); }
+.reset { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+.bars { display: flex; align-items: flex-end; gap: 3px; height: 54px; margin-top: 14px; }
+.bars i { flex: 1; background: var(--clay2); border-radius: 4px 4px 2px 2px; min-height: 3px; opacity: .55; transition: height .8s cubic-bezier(.3,1.4,.5,1); }
+.bars i:last-child { opacity: 1; background: var(--clay); }
+.barlbl { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+.speed { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+.speed .meter { flex: 1; height: 8px; border-radius: 9px; background: var(--bg2); overflow: hidden; }
+.speed .meter i { display: block; height: 100%; width: 0; border-radius: 9px; background: linear-gradient(90deg, var(--clay2), var(--clay)); transition: width .8s; }
+.week { display: flex; gap: 6px; margin-top: 14px; }
+.week div { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
+.week i { display: block; height: 36px; border-radius: 8px; background: var(--bg2); margin-bottom: 4px; position: relative; overflow: hidden; }
+.week i::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--h); background: var(--clay2); border-radius: 8px; transition: height .8s; }
+.week div:last-child i::after { background: var(--clay); }
+
+/* ---------- sessions ---------- */
+.sessions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.sess { background: var(--card); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); padding: 14px; animation: cardIn .45s cubic-bezier(.3,1.4,.5,1); transition: border-color .3s; }
+.sess.busy { animation: cardIn .45s cubic-bezier(.3,1.4,.5,1), glow 2.4s ease-in-out infinite; border-color: rgba(217,119,87,.45); }
+.sess.flash { animation: flash 1.6s ease-out; }
+.sess .row { display: flex; gap: 12px; align-items: center; cursor: pointer; }
+.sess .mascot { width: 52px; height: 52px; flex: none; }
+.sess .meta { flex: 1; min-width: 0; }
+.sess .title { font-weight: 900; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess .sub { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin-top: 2px; flex-wrap: wrap; }
+.pill { font-size: 11px; font-weight: 900; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+.pill.busy { background: var(--peach); color: var(--clay); }
+.pill.idle { background: rgba(93,187,122,.16); color: var(--green); }
+.pill.waiting { background: rgba(230,162,60,.18); color: var(--amber); }
+.activity { margin-top: 10px; font-size: 13px; background: var(--bg2); border-radius: 14px; padding: 8px 12px; display: flex; gap: 8px; align-items: center; }
+.activity span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.activity .ago { flex: none !important; color: var(--muted); font-size: 11px; }
+.ctx { height: 5px; border-radius: 9px; background: var(--bg2); margin-top: 10px; overflow: hidden; }
+.ctx i { display: block; height: 100%; background: var(--green); border-radius: 9px; transition: width .8s; }
+.ctxlbl { font-size: 10px; color: var(--muted); margin-top: 3px; display: flex; justify-content: space-between; }
+.drawer { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s cubic-bezier(.3,1,.4,1); }
+.sess.open .drawer { grid-template-rows: 1fr; }
+.drawer > div { overflow: hidden; }
+.convo { font-size: 13px; margin-top: 12px; display: grid; gap: 6px; }
+.convo p { margin: 0; padding: 8px 12px; border-radius: 14px; line-height: 1.35; font-weight: 600; max-height: 6.2em; overflow: hidden; }
+.convo .you { background: var(--bg2); justify-self: end; border-bottom-right-radius: 4px; max-width: 88%; }
+.convo .cl { background: var(--peach); border-bottom-left-radius: 4px; max-width: 92%; }
+.keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.say { display: flex; gap: 8px; margin-top: 10px; }
+.say input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 12px 14px; border-radius: 16px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); outline: none; user-select: text; -webkit-user-select: text; }
+.say input:focus { border-color: var(--clay); }
+.say button { background: var(--clay); color: #fff; border-radius: 16px; padding: 0 18px; font-weight: 900; }
+.empty { text-align: center; padding: 30px 10px; color: var(--muted); }
+.empty .mascot { width: 90px; height: 90px; margin: 0 auto 6px; display: block; }
+
+/* ---------- deck keys ---------- */
+.deck { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (min-width: 900px) { .deck { grid-template-columns: repeat(3, 1fr); } }
+.key { aspect-ratio: 1; background: var(--key); color: var(--key-ink); border-radius: 18px; display: grid; place-content: center; text-align: center;
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), 0 6px 14px -8px rgba(0,0,0,.5);
+  transition: transform .08s, box-shadow .08s, background .2s; position: relative; overflow: hidden; touch-action: manipulation; }
+.key .e { font-size: 26px; line-height: 1; }
+.key .l { font-size: 10px; margin-top: 5px; opacity: .75; font-weight: 800; padding: 0 4px; }
+.key:active, .key.pressed { transform: translateY(2px) scale(.96); box-shadow: inset 0 -1px 0 rgba(0,0,0,.35), 0 2px 6px -4px rgba(0,0,0,.5); }
+.key.hot { background: var(--clay); }
+.key::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,200,170,.55), transparent 60%); opacity: 0; transition: opacity .5s; }
+.key.pressed::after { opacity: 1; transition: none; }
+.keys .key { aspect-ratio: auto; padding: 10px 2px; border-radius: 16px; }
+.keys .key .e { font-size: 20px; }
+
+/* ---------- toast & sheet ---------- */
+.toast { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translate(-50%, 120px); background: var(--ink); color: var(--bg);
+  padding: 12px 18px; border-radius: 18px; font-weight: 800; z-index: 20; transition: transform .35s cubic-bezier(.3,1.5,.5,1); max-width: calc(100vw - 32px); }
+.toast.show { transform: translate(-50%, 0); }
+.toast.err { background: var(--red); color: #fff; }
+.toast pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; max-height: 40vh; overflow: auto; font-family: ui-monospace, monospace; font-weight: 500; user-select: text; -webkit-user-select: text; }
+.sheet-bg { position: fixed; inset: 0; background: rgba(20,12,8,.45); z-index: 30; opacity: 0; pointer-events: none; transition: opacity .25s; }
+.sheet-bg.show { opacity: 1; pointer-events: auto; }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; background: var(--card); border-radius: 28px 28px 0 0; padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+  max-height: 75dvh; overflow: auto; transform: translateY(105%); transition: transform .35s cubic-bezier(.3,1.2,.5,1); max-width: 640px; margin: 0 auto; }
+.sheet.show { transform: none; }
+.sheet h3 { margin: 0 0 12px; font-size: 20px; font-weight: 900; }
+.proj { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.proj button { background: var(--bg2); border-radius: 16px; padding: 14px 12px; text-align: left; font-weight: 800; }
+.proj button:active { background: var(--peach); }
+
+.pairing { max-width: 420px; margin: 12vh auto; text-align: center; }
+.pairing .mascot { width: 140px; height: 140px; }
+.pairing code { background: var(--bg2); padding: 2px 8px; border-radius: 8px; }
+/* ---------- pet stats ---------- */
+.petrow { display: flex; justify-content: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.chip { background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 900; white-space: nowrap; }
+.chip.lv { background: var(--clay); color: #fff; border-color: transparent; }
+.xp { height: 7px; border-radius: 9px; background: var(--bg2); margin: 10px auto 0; max-width: 240px; overflow: hidden; }
+.xp i { display: block; height: 100%; width: 0; border-radius: 9px; background: linear-gradient(90deg, #f6c85f, var(--clay)); transition: width 1s; }
+.xplbl { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.timerchip { display: none; margin-top: 10px; }
+.timerchip.on { display: inline-flex; gap: 8px; align-items: center; background: var(--peach); color: var(--clay); border-radius: 99px; padding: 5px 6px 5px 12px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.timerchip button { background: var(--card); border-radius: 99px; width: 24px; height: 24px; font-size: 11px; }
+.mascot .acc { display: none; }
+.mascot .acc.on { display: block; }
+.mascot .acc.on .bob { animation: hatbob 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: bottom center; }
+@keyframes hatbob { 50% { transform: rotate(-6deg) } }
+
+/* ---------- projects ---------- */
+.projs { margin-top: 14px; display: grid; gap: 6px; }
+.projs .p { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 12px; align-items: center; }
+.projs .p span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projs .p b { font-variant-numeric: tabular-nums; }
+.projs .p i { grid-column: 1 / -1; height: 5px; border-radius: 9px; background: var(--clay2); opacity: .8; transition: width .8s; }
+
+/* ---------- pending prompt ---------- */
+.pending { margin-top: 12px; border: 2px dashed var(--amber); border-radius: 18px; padding: 12px; background: rgba(230,162,60,.08); }
+.pending .q { font-size: 14px; font-weight: 800; line-height: 1.35; }
+.pending .hd { font-size: 11px; color: var(--amber); text-transform: uppercase; letter-spacing: .1em; font-weight: 900; margin-bottom: 4px; }
+.pending pre { font-size: 11px; white-space: pre-wrap; max-height: 160px; overflow: auto; background: var(--bg2); border-radius: 10px; padding: 8px; margin: 8px 0 0; font-family: ui-monospace, monospace; user-select: text; -webkit-user-select: text; }
+.opts { display: grid; gap: 6px; margin-top: 10px; }
+.opts button { text-align: left; background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; font-weight: 800; display: flex; gap: 10px; align-items: center; transition: transform .1s; }
+.opts button:active { transform: scale(.97); border-color: var(--amber); }
+.opts button b { background: var(--amber); color: #fff; border-radius: 8px; min-width: 24px; height: 24px; display: grid; place-items: center; font-size: 13px; }
+
+/* ---------- macros & feed ---------- */
+.macros { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; scrollbar-width: none; }
+.macros::-webkit-scrollbar { display: none; }
+.macros button { flex: none; background: var(--bg2); border-radius: 99px; padding: 7px 12px; font-size: 13px; font-weight: 800; white-space: nowrap; transition: transform .1s; }
+.macros button:active { transform: scale(.94); background: var(--peach); }
+.feedbtn { margin-top: 10px; width: 100%; background: var(--bg2); border-radius: 14px; padding: 9px; font-size: 13px; font-weight: 800; color: var(--muted); }
+.feed { display: none; margin-top: 8px; max-height: 340px; overflow-y: auto; gap: 6px; font-size: 12px; overscroll-behavior: contain; }
+.sess.feedon .feed { display: grid; }
+.feed .you, .feed .claude { padding: 7px 11px; border-radius: 12px; line-height: 1.35; font-weight: 600; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; }
+.feed .you { background: var(--bg2); justify-self: end; max-width: 88%; }
+.feed .claude { background: var(--peach); max-width: 94%; }
+.feed .tool { color: var(--muted); font-size: 11px; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed .err { color: var(--red); font-size: 11px; padding: 0 6px; }
+.mic { background: var(--bg2) !important; color: var(--ink) !important; padding: 0 14px !important; }
+.mic.rec { background: var(--red) !important; color: #fff !important; animation: glow 1s infinite; }
+
+/* ---------- vitals & servers ---------- */
+.vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gauge { text-align: center; font-size: 11px; color: var(--muted); }
+.gauge svg { width: 100%; max-width: 70px; display: block; margin: 0 auto; transform: rotate(-90deg); }
+.gauge .g-track { stroke: var(--bg2); } .gauge .g-fill { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset .8s, stroke .4s; }
+.gauge .g-val { font-size: 13px; letter-spacing: -.02em; font-weight: 900; color: var(--ink); margin-top: -46px; height: 40px; display: grid; place-items: center; }
+.vfoot { font-size: 11px; color: var(--muted); margin-top: 10px; display: flex; justify-content: space-between; }
+.servers { display: grid; gap: 6px; }
+.srv { display: flex; align-items: center; gap: 10px; background: var(--bg2); border-radius: 14px; padding: 8px 12px; font-size: 13px; text-decoration: none; color: inherit; }
+.srv .port { font-weight: 900; color: var(--clay); font-variant-numeric: tabular-nums; min-width: 48px; }
+.srv .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srv small { color: var(--muted); font-size: 10px; }
+.srv.lan:active { background: var(--peach); }
+
+/* ---------- settings ---------- */
+.set { display: grid; gap: 16px; }
+.set label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 800; }
+.set input[type=range] { flex: 1; accent-color: var(--clay); }
+.toggle { width: 50px; height: 30px; border-radius: 99px; background: var(--bg2); position: relative; flex: none; transition: background .2s; }
+.toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .25s cubic-bezier(.3,1.5,.5,1); }
+.toggle.on { background: var(--clay); } .toggle.on::after { transform: translateX(20px); }
+.hint { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: -8px; }
+.hint a { color: var(--clay); word-break: break-all; }
+.medit { display: grid; gap: 6px; }
+.medit .m { display: grid; grid-template-columns: 44px minmax(0, 1fr) 36px; gap: 6px; align-items: center; background: var(--bg2); border-radius: 12px; padding: 6px; font-size: 13px; }
+.medit .m div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .medit .m small { color: var(--muted); }
+.medit .m button { height: 32px; border-radius: 10px; background: var(--card); }
+.madd { display: grid; grid-template-columns: 52px 1fr; gap: 6px; }
+.madd input, .madd textarea { font: inherit; font-size: 16px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; padding: 8px 10px; outline: none; user-select: text; -webkit-user-select: text; min-width: 0; }
+.madd textarea { grid-column: 1 / -1; resize: vertical; min-height: 60px; }
+.madd button { grid-column: 1 / -1; background: var(--clay); color: #fff; border-radius: 12px; padding: 10px; font-weight: 900; }
+.confetti { position: fixed; top: -20px; font-size: 18px; pointer-events: none; z-index: 40; animation: fall var(--t, 2.4s) linear forwards; }
+@keyframes fall { to { transform: translate(var(--dx, 0), 110vh) rotate(var(--r, 360deg)); } }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast" id="toast"></div>
+<div class="sheet-bg" id="sheetbg"></div>
+<div class="sheet" id="sheet"></div>
+<script>
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- token ----------
+const qs = new URLSearchParams(location.search);
+let token = qs.get('t');
+try { if (token) localStorage.setItem('deck-token', token); else token = localStorage.getItem('deck-token'); } catch {}
+if (qs.get('t')) history.replaceState(null, '', location.pathname);
+
+// ---------- mascot ----------
+// hats the hero unlocks as you level up (plus a nightcap after midnight)
+const ACCESSORIES = `
+  <g class="acc" data-acc="bow"><g class="bob">
+    <path d="M 14 -27 l -9 -7 v 14 z" fill="#f472b6"/><path d="M 14 -27 l 9 -7 v 14 z" fill="#f472b6"/><circle cx="14" cy="-27" r="3.2" fill="#ec4899"/></g></g>
+  <g class="acc" data-acc="party"><g class="bob">
+    <path d="M -13 -23 L 2 -62 L 15 -22 Q 1 -17 -13 -23 z" fill="#7c9cff"/>
+    <path d="M -8 -36 L 11 -33 M -4 -47 L 8 -45" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+    <circle cx="2" cy="-63" r="5" fill="#f6c85f"/></g></g>
+  <g class="acc" data-acc="crown"><g class="bob">
+    <path d="M -16 -24 L -18 -46 L -8 -36 L 0 -52 L 8 -36 L 18 -46 L 16 -24 Q 0 -19 -16 -24 z" fill="#f6c85f" stroke="#e0a82e" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="0" cy="-30" r="2.6" fill="#e05d5d"/><circle cx="-9" cy="-29" r="1.8" fill="#7c9cff"/><circle cx="9" cy="-29" r="1.8" fill="#5dbb7a"/></g></g>
+  <g class="acc" data-acc="nightcap"><g class="bob">
+    <path d="M -18 -21 Q -8 -52 16 -50 Q 34 -46 38 -26 Q 26 -40 18 -36 Q 22 -28 18 -21 Q 0 -15 -18 -21 z" fill="#6b7fd7"/>
+    <path d="M -18 -21 Q 0 -15 18 -21" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <circle cx="38" cy="-25" r="5" fill="#fff"/></g></g>`;
+function mascot(cls = '', acc = false) {
+  const lens = [44, 37, 42, 35, 45, 38, 41, 36, 44, 39, 42, 36];
+  let rays = '';
+  lens.forEach((L, i) => {
+    const a = i * 30 + (i % 3) * 4 - 4;
+    rays += `<rect class="ray" x="-5.2" y="${-L}" width="10.4" height="${L - 8}" rx="5.2" transform="rotate(${a})"/>`;
+  });
+  return `<svg class="mascot ${cls}" viewBox="-60 -60 120 120" aria-hidden="true">
+    <g class="whole">
+      <g class="rays">${rays}</g>
+      <circle class="core" r="25"/>
+      <g class="face">
+        <ellipse class="cheek" cx="-14" cy="7" rx="4.6" ry="2.8"/>
+        <ellipse class="cheek" cx="14" cy="7" rx="4.6" ry="2.8"/>
+        <g class="eye-l"><ellipse class="eye" cx="-8" cy="-2" rx="3.4" ry="4.8"/><circle class="shine" cx="-6.8" cy="-3.8" r="1.2"/></g>
+        <g class="eye-r"><ellipse class="eye" cx="8" cy="-2" rx="3.4" ry="4.8"/><circle class="shine" cx="9.2" cy="-3.8" r="1.2"/></g>
+        <path class="mouth" d="M -4.5 6.5 Q 0 11 4.5 6.5"/>
+        <ellipse class="mouth-o" cx="0" cy="8" rx="3" ry="3.2"/>
+      </g>
+      <path class="sweat" d="M 22 -20 q 4 6 0 8 q -4 -2 0 -8 z"/>
+      ${acc ? ACCESSORIES : ''}
+    </g>
+    <g class="zzz"><text x="24" y="-26" font-size="12">z</text><text x="30" y="-36" font-size="15">z</text><text x="38" y="-48" font-size="18">Z</text></g>
+    <g class="sparkles">
+      <path d="M -46 -30 l 2 -6 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 z"/>
+      <path d="M 44 -40 l 1.5 -4.5 l 1.5 4.5 l 4.5 1.5 l -4.5 1.5 l -1.5 4.5 l -1.5 -4.5 l -4.5 -1.5 z"/>
+      <path d="M 40 36 l 1.5 -4.5 l 1.5 4.5 l 4.5 1.5 l -4.5 1.5 l -1.5 4.5 l -1.5 -4.5 l -4.5 -1.5 z"/>
+    </g>
+  </svg>`;
+}
+function setMood(svg, mood, extra = []) {
+  if (!svg) return;
+  const keep = ['mascot', ...extra];
+  for (const c of [...svg.classList]) if (!keep.includes(c) && !['happy', 'squish'].includes(c)) svg.classList.remove(c);
+  if (mood) svg.classList.add(mood);
+}
+function burst(svg, cls = 'happy') {
+  svg.classList.remove(cls); void svg.getBoundingClientRect(); svg.classList.add(cls);
+  setTimeout(() => svg.classList.remove(cls), 800);
+}
+function hearts(el, n = 6, chars = ['🧡', '✨', '💛', '🧡', '⭐']) {
+  const r = el.getBoundingClientRect();
+  for (let i = 0; i < n; i++) {
+    const h = document.createElement('div');
+    h.className = 'heart';
+    h.textContent = chars[Math.floor(Math.random() * chars.length)];
+    h.style.left = (r.left + r.width / 2 - 11 + (Math.random() - .5) * r.width * .5) + 'px';
+    h.style.top = (r.top + window.scrollY + r.height * .35) + 'px';
+    h.style.position = 'absolute';
+    h.style.setProperty('--dx', ((Math.random() - .5) * 120) + 'px');
+    h.style.animationDelay = (i * 60) + 'ms';
+    document.body.appendChild(h);
+    setTimeout(() => h.remove(), 1700);
+  }
+}
+
+// ---------- sound & haptics ----------
+let audio = null, soundOn = true;
+try { soundOn = localStorage.getItem('deck-sound') !== 'off'; } catch {}
+function unlockAudio() { if (!audio) try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch {} if (audio && audio.state === 'suspended') audio.resume(); }
+function chime(notes = [880, 1320]) {
+  if (!soundOn || !audio) return;
+  notes.forEach((f, i) => {
+    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime + i * 0.11;
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 0.4);
+  });
+}
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch {} };
+document.addEventListener('pointerdown', unlockAudio, { once: false, passive: true });
+
+// ---------- helpers ----------
+const fmtTok = n => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(Math.round(n));
+const fmtUsd = n => n >= 100 ? '$' + Math.round(n) : '$' + n.toFixed(2);
+function ago(ts) {
+  if (!ts) return '';
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 10) return 'now'; if (s < 60) return Math.floor(s) + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm'; if (s < 86400) return Math.floor(s / 3600) + 'h';
+  return Math.floor(s / 86400) + 'd';
+}
+function dur(ms) { const m = Math.max(0, Math.round(ms / 60000)); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
+const statusOf = s => s.status === 'busy' ? 'busy' : /wait|perm|input/i.test(s.status) ? 'waiting' : 'idle';
+const pillText = { busy: 'cooking', idle: 'your turn', waiting: 'needs you!' };
+
+let toastTimer;
+function toast(msg, { err = false, output = '' } = {}) {
+  const t = $('#toast');
+  t.className = 'toast show' + (err ? ' err' : '');
+  t.innerHTML = esc(msg) + (output ? `<pre>${esc(output)}</pre>` : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), output ? 7000 : 2200);
+}
+$('#toast').addEventListener('click', () => $('#toast').classList.remove('show'));
+
+async function act(body) {
+  buzz(12);
+  try {
+    const r = await fetch('api/action', { method: 'POST', headers: { 'content-type': 'application/json', 'x-deck-token': token }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.msg || j.error || 'failed');
+    toast(j.msg, { output: j.output });
+    return j;
+  } catch (e) { buzz([30, 40, 30]); toast('😿 ' + e.message, { err: true }); }
+}
+function pressFx(el, ev) {
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--x', ((ev.clientX - r.left) / r.width * 100) + '%');
+  el.style.setProperty('--y', ((ev.clientY - r.top) / r.height * 100) + '%');
+  el.classList.add('pressed');
+  setTimeout(() => el.classList.remove('pressed'), 160);
+}
+
+// ---------- pairing screen ----------
+if (!token) {
+  $('#root').innerHTML = `<div class="pairing card">${mascot('sleep')}
+    <h1 style="font-weight:900;margin:8px 0">Hi! Let's pair 🧡</h1>
+    <p style="color:var(--muted);font-weight:600">On your laptop, open <code>http://localhost:4747/pair</code> and scan the QR code with this device.</p></div>`;
+  throw new Error('no token');
+}
+
+// ---------- layout ----------
+const theme = (() => { try { return localStorage.getItem('deck-theme'); } catch { return null; } })();
+if (theme) document.documentElement.dataset.theme = theme;
+
+$('#root').innerHTML = `
+<div class="app">
+  <div class="col">
+    <section class="card hero">
+      <div class="topbar">
+        <div class="conn" id="conn"><span class="dot"></span><span id="host">connecting…</span></div>
+        <div style="display:flex;gap:6px">
+          <button class="iconbtn" id="soundBtn" aria-label="Toggle sound">${soundOn ? '🔔' : '🔕'}</button>
+          <button class="iconbtn" id="themeBtn" aria-label="Toggle theme">🌗</button>
+          <button class="iconbtn" id="setBtn" aria-label="Settings">⚙️</button>
+        </div>
+      </div>
+      <div id="hero">${mascot('sleep', true)}</div>
+      <div class="bubble" id="bubble">waking up…</div>
+      <div><div class="timerchip" id="timer"><span id="timerTxt"></span><button id="timerStop" aria-label="Stop timer">✕</button></div></div>
+      <div class="petrow"><span class="chip lv" id="lv">Lv 1</span><span class="chip" id="streak">🔥 0 days</span><span class="chip" id="lifetime">0 tok</span></div>
+      <div class="xp"><i id="xp"></i></div><div class="xplbl" id="xpl"></div>
+    </section>
+    <section class="card">
+      <h2>5-hour window</h2>
+      <div class="ringwrap">
+        <div class="ring">
+          <svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="14"/>
+            <circle class="fill" id="ringFill" cx="60" cy="60" r="50" fill="none" stroke-width="14" stroke-dasharray="314.16" stroke-dashoffset="314.16"/></svg>
+          <div class="center"><div class="pct" id="pct">0%</div><div class="lbl">of budget</div></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b id="sBlock">$0</b><span>this window</span></div>
+          <div class="stat"><b id="sToday">$0</b><span>today</span></div>
+          <div class="stat"><b id="sOut">0</b><span>tokens out today</span></div>
+          <div class="stat"><b id="sWeek">$0</b><span>last 7 days</span></div>
+        </div>
+      </div>
+      <div class="reset"><span id="resetIn">no active window</span><span id="msgs"></span></div>
+      <div class="speed"><span>⚡</span><div class="meter"><i id="speed"></i></div><span id="speedLbl">0 tok/min</span></div>
+      <div class="bars" id="bars"></div>
+      <div class="barlbl"><span>24h ago</span><span>output tokens / hour</span><span>now</span></div>
+      <div class="week" id="week"></div>
+      <div class="projs" id="projs"></div>
+    </section>
+  </div>
+  <div class="col" style="position:static">
+    <section>
+      <h2 style="margin-left:6px">Sessions <span class="count" id="count">0</span></h2>
+      <div class="sessions" id="sessions"></div>
+    </section>
+  </div>
+  <div class="col">
+    <section class="card">
+      <h2>Deck</h2>
+      <div class="deck" id="deck"></div>
+    </section>
+    <section class="card">
+      <h2>Laptop</h2>
+      <div class="vitals" id="vitals"></div>
+      <div class="vfoot"><span id="load"></span><span id="uptime"></span></div>
+    </section>
+    <section class="card">
+      <h2>Dev servers <span class="count" id="srvCount">0</span></h2>
+      <div class="servers" id="servers"></div>
+    </section>
+  </div>
+</div>`;
+
+// hero interactions: tap to squish, eyes follow your finger
+const heroEl = $('#hero');
+const lines = ['hi friend! 🧡', 'boop!', 'you got this ✨', 'shipping vibes 🚀', 'hehe that tickles', 'ready when you are', 'one more commit?', 'drink some water 💧'];
+heroEl.addEventListener('click', () => {
+  const svg = $('svg', heroEl); burst(svg, 'squish'); hearts(heroEl, 7); buzz(15); chime([1046, 1318, 1568]);
+  say(lines[Math.floor(Math.random() * lines.length)], 2500);
+});
+document.addEventListener('pointermove', e => {
+  const svg = $('svg', heroEl); if (!svg) return;
+  const r = svg.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 300) * 4;
+  $('.face', svg).style.transform = `translate(${dx / d * k}px, ${dy / d * k}px)`;
+}, { passive: true });
+
+$('#soundBtn').addEventListener('click', e => {
+  soundOn = !soundOn; e.currentTarget.textContent = soundOn ? '🔔' : '🔕';
+  try { localStorage.setItem('deck-sound', soundOn ? 'on' : 'off'); } catch {}
+  unlockAudio(); chime();
+});
+$('#themeBtn').addEventListener('click', () => {
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('deck-theme', next); } catch {}
+});
+
+let sayUntil = 0;
+function say(text, hold = 0) {
+  const b = $('#bubble');
+  if (hold) sayUntil = Date.now() + hold; else if (Date.now() < sayUntil) return;
+  if (b.textContent === text) return;
+  b.textContent = text; b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+}
+
+// ---------- deck ----------
+let projects = [], cfg = { macros: [], ntfy: {} };
+const BUILTIN_KEYS = [{ id: 'timer', label: 'Focus 25', emoji: '🍅', type: 'timer' }];
+function loadConfig() {
+  return fetch('api/config', { headers: { 'x-deck-token': token } }).then(r => r.json()).then(c => {
+    cfg = c; projects = c.projects || [];
+    $('#deck').innerHTML = [...(c.deck || []), ...BUILTIN_KEYS].map(b => `<button class="key${b.type === 'new-session' ? ' hot' : ''}" data-id="${esc(b.id)}" data-type="${esc(b.type || '')}"><span class="e">${esc(b.emoji)}</span><span class="l">${esc(b.label)}</span></button>`).join('');
+    for (const el of cards.values()) renderMacros(el);
+  }).catch(() => toast('😿 could not load deck', { err: true }));
+}
+loadConfig();
+$('#deck').addEventListener('click', e => {
+  const k = e.target.closest('.key'); if (!k) return;
+  pressFx(k, e);
+  if (k.dataset.type === 'new-session') return openProjects();
+  if (k.dataset.type === 'timer') return openTimer();
+  act({ type: 'deck', id: k.dataset.id });
+});
+function openTimer() {
+  openSheet(`<h3>🍅 Focus timer</h3><p class="hint" style="margin:0 0 12px">Your laptop and phone both get pinged when it's done.</p>
+    <div class="proj">${[5, 15, 25, 45, 60, 90].map(m => `<button data-min="${m}">⏱ ${m} min</button>`).join('')}</div>`);
+}
+$('#timerStop').addEventListener('click', () => act({ type: 'timer', minutes: 0 }));
+
+// ---------- settings ----------
+async function saveSettings(body) {
+  try {
+    const r = await fetch('api/settings', { method: 'POST', headers: { 'content-type': 'application/json', 'x-deck-token': token }, body: JSON.stringify(body) });
+    const c = await r.json(); if (c.ok === false) throw new Error(c.msg);
+    await loadConfig(); return c;
+  } catch (e) { toast('😿 ' + e.message, { err: true }); }
+}
+function openSettings() {
+  const n = cfg.ntfy || {};
+  const ntfyLink = n.enabled ? `${n.server}/${n.topic}` : '';
+  openSheet(`<h3>⚙️ Settings</h3><div class="set">
+    <label>5h budget <input type="range" id="budget" min="5" max="300" step="5" value="${cfg.budget || 40}"><b id="budgetV">$${cfg.budget || 40}</b></label>
+    <div class="hint">What counts as 100% of the ring. Tune it until the ring fills up about when you actually hit your limit.</div>
+    <label>Push to phone (ntfy) <button class="toggle${n.enabled ? ' on' : ''}" id="ntfyT" aria-label="Toggle push"></button></label>
+    <div class="hint">${n.enabled ? `Install the free <b>ntfy</b> app and subscribe to <a href="${esc(ntfyLink)}" target="_blank">${esc(ntfyLink)}</a>, or open that link. You'll get pinged when a Claude finishes or needs you. The topic name is the password, so keep it private.` : 'Sends “Claude is done / needs you” pings through ntfy.sh, so they arrive even when this page is closed.'}</div>
+    <div><h2 style="margin-bottom:8px">Quick prompts</h2><div class="medit" id="medit"></div></div>
+    <form class="madd" id="madd"><input id="mE" placeholder="🚀" maxlength="4"><input id="mL" placeholder="Button name" maxlength="24"><textarea id="mT" placeholder="What to tell Claude…"></textarea><button>Add quick prompt</button></form>
+  </div>`);
+  renderMEdit();
+  $('#budget').addEventListener('input', e => $('#budgetV').textContent = '$' + e.target.value);
+  $('#budget').addEventListener('change', e => saveSettings({ budget: +e.target.value }));
+  $('#ntfyT').addEventListener('click', async () => { await saveSettings({ ntfy: !(cfg.ntfy || {}).enabled }); openSettings(); });
+  $('#madd').addEventListener('submit', async e => {
+    e.preventDefault();
+    const m = { emoji: $('#mE').value.trim() || '💬', label: $('#mL').value.trim(), text: $('#mT').value.trim() };
+    if (!m.label || !m.text) return toast('needs a name and a prompt 🙏', { err: true });
+    await saveSettings({ macros: [...cfg.macros, m] }); renderMEdit(); e.target.reset(); toast('Added ' + m.emoji);
+  });
+}
+function renderMEdit() {
+  const box = $('#medit'); if (!box) return;
+  box.innerHTML = cfg.macros.map((m, i) => `<div class="m"><span style="text-align:center;font-size:20px">${esc(m.emoji)}</span><div><b>${esc(m.label)}</b><br><small>${esc(m.text)}</small></div><button data-del="${i}" aria-label="Delete">✕</button></div>`).join('');
+  box.onclick = async e => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    await saveSettings({ macros: cfg.macros.filter((_, i) => i !== +b.dataset.del) }); renderMEdit();
+  };
+}
+$('#setBtn').addEventListener('click', openSettings);
+function openSheet(html) { $('#sheet').innerHTML = html; $('#sheet').classList.add('show'); $('#sheetbg').classList.add('show'); }
+function openProjects() {
+  openSheet(`<h3>✨ Start a Claude in…</h3><div class="proj">${projects.map(p => `<button data-path="${esc(p.path)}">📁 ${esc(p.name)}</button>`).join('')}</div>`);
+}
+const closeSheet = () => { $('#sheet').classList.remove('show'); $('#sheetbg').classList.remove('show'); };
+$('#sheetbg').addEventListener('click', closeSheet);
+$('#sheet').addEventListener('click', e => {
+  const b = e.target.closest('button[data-path]');
+  if (b) { closeSheet(); act({ type: 'new-session', cwd: b.dataset.path }).then(j => j && burst($('#hero svg'), 'happy')); return; }
+  const t = e.target.closest('button[data-min]');
+  if (t) { closeSheet(); act({ type: 'timer', minutes: +t.dataset.min }).then(j => j && burst($('#hero svg'), 'squish')); }
+});
+
+// ---------- sessions ----------
+const SESSION_KEYS = [
+  { k: 'focus', e: '👀', l: 'Focus', a: pid => ({ type: 'focus', pid }) },
+  { k: 'yes', e: '✅', l: 'Yes (1)', a: pid => ({ type: 'key', pid, key: '1' }) },
+  { k: 'go', e: '▶️', l: 'Continue', a: pid => ({ type: 'send', pid, text: 'continue' }) },
+  { k: 'stop', e: '✋', l: 'Stop', a: pid => ({ type: 'key', pid, key: 'escape' }) },
+  { k: 'compact', e: '🗜️', l: '/compact', a: pid => ({ type: 'send', pid, text: '/compact' }) },
+  { k: 'mode', e: '🔁', l: 'Mode', a: pid => ({ type: 'key', pid, key: 'shift-tab' }) },
+  { k: 'git', e: '🌿', l: 'Git', a: pid => ({ type: 'git', pid }) },
+  { k: 'enter', e: '⏎', l: 'Enter', a: pid => ({ type: 'key', pid, key: 'enter' }) },
+];
+const open = new Set();
+const prev = new Map();
+const cards = new Map();
+
+function sessionCard(s) {
+  const el = document.createElement('article');
+  el.className = 'sess';
+  el.dataset.pid = s.pid;
+  el.innerHTML = `
+    <div class="row">${mascot()}<div class="meta"><div class="title"></div><div class="sub"></div></div><span class="pill"></span></div>
+    <div class="activity"><span class="ic"></span><span class="tx"></span><span class="ago"></span></div>
+    <div class="ctx"><i></i></div><div class="ctxlbl"><span class="cl1"></span><span class="cl2"></span></div>
+    <div class="pending" hidden></div>
+    <div class="drawer"><div>
+      <div class="convo"></div>
+      <div class="keys">${SESSION_KEYS.map(k => `<button class="key" data-k="${k.k}"><span class="e">${k.e}</span><span class="l">${k.l}</span></button>`).join('')}</div>
+      <div class="macros"></div>
+      <form class="say"><input placeholder="Tell Claude something…" enterkeyhint="send" autocomplete="off">${SR ? '<button type="button" class="mic" aria-label="Hold to talk">🎙️</button>' : ''}<button>Send</button></form>
+      <button class="feedbtn">📜 Live feed</button>
+      <div class="feed"></div>
+    </div></div>`;
+  $('.pending', el).addEventListener('click', e => {
+    const b = e.target.closest('button[data-key]'); if (!b) return;
+    act({ type: 'key', pid: +el.dataset.pid, key: b.dataset.key }).then(j => j && hearts(b, 3, ['✅', '✨']));
+  });
+  $('.macros', el).addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]'); if (!b) return;
+    const m = cfg.macros[+b.dataset.i];
+    if (m) act({ type: 'send', pid: +el.dataset.pid, text: m.text }).then(j => j && hearts(b, 3, [m.emoji]));
+  });
+  renderMacros(el);
+  $('.feedbtn', el).addEventListener('click', () => {
+    el.classList.toggle('feedon');
+    $('.feedbtn', el).textContent = el.classList.contains('feedon') ? '📜 Hide feed' : '📜 Live feed';
+    if (el.classList.contains('feedon')) loadFeed(el);
+  });
+  const mic = $('.mic', el);
+  if (mic) {
+    const start = e => { e.preventDefault(); listen($('input', el), mic); };
+    mic.addEventListener('pointerdown', start);
+    mic.addEventListener('pointerup', () => recog && recog.stop());
+    mic.addEventListener('pointerleave', () => recog && recog.stop());
+  }
+  $('.row', el).addEventListener('click', () => {
+    el.classList.toggle('open');
+    el.classList.contains('open') ? open.add(s.pid) : open.delete(s.pid);
+    buzz(8);
+  });
+  $('.keys', el).addEventListener('click', e => {
+    const k = e.target.closest('.key'); if (!k) return;
+    pressFx(k, e);
+    act(SESSION_KEYS.find(x => x.k === k.dataset.k).a(+el.dataset.pid));
+  });
+  $('.say', el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const inp = $('input', el); const text = inp.value.trim(); if (!text) return;
+    const j = await act({ type: 'send', pid: +el.dataset.pid, text });
+    if (j) { inp.value = ''; inp.blur(); hearts($('.mascot', el), 3, ['💌']); }
+  });
+  if (open.has(s.pid)) el.classList.add('open');
+  el.dataset.sid = s.sessionId;
+  return el;
+}
+function renderMacros(el) {
+  $('.macros', el).innerHTML = (cfg.macros || []).map((m, i) => `<button data-i="${i}">${esc(m.emoji)} ${esc(m.label)}</button>`).join('');
+}
+async function loadFeed(el) {
+  if (!el.classList.contains('feedon') || !el.isConnected) return;
+  try {
+    const r = await fetch(`api/feed?sid=${encodeURIComponent(el.dataset.sid)}`, { headers: { 'x-deck-token': token } });
+    const { items = [] } = await r.json();
+    const box = $('.feed', el);
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    const html = items.map(x => x.kind === 'tool' ? `<div class="tool">${esc(x.icon)} ${esc(x.text)}</div>` : `<div class="${x.kind}">${esc(x.text)}</div>`).join('') || '<div class="tool">nothing yet</div>';
+    if (box.innerHTML !== html) { box.innerHTML = html; if (atBottom || !box.dataset.loaded) box.scrollTop = box.scrollHeight; box.dataset.loaded = 1; }
+  } catch {}
+  setTimeout(() => loadFeed(el), 3000);
+}
+function renderPending(el, s) {
+  const box = $('.pending', el), p = s.pending;
+  if (!p) { box.hidden = true; box.dataset.id = ''; return; }
+  if (box.dataset.id === p.id) return; // don't rebuild under the user's finger
+  box.dataset.id = p.id; box.hidden = false;
+  const opt = (key, label) => `<button data-key="${key}"><b>${key}</b><span>${esc(label)}</span></button>`;
+  let html;
+  if (p.name === 'AskUserQuestion' && p.questions?.length) {
+    const q = p.questions[0];
+    html = `<div class="hd">🙋 ${esc(q.header || 'Question')}${p.questions.length > 1 ? ` · 1 of ${p.questions.length}` : ''}</div><div class="q">${esc(q.question)}</div>
+      <div class="opts">${q.options.map((o, i) => opt(i + 1, o)).join('')}</div>`;
+  } else if (p.name === 'ExitPlanMode') {
+    html = `<div class="hd">🗺️ Plan ready</div>${p.detail ? `<pre>${esc(p.detail)}</pre>` : ''}
+      <div class="opts">${opt(1, 'Yes, auto-accept edits')}${opt(2, 'Yes, approve each edit')}${opt(3, 'No, keep planning')}</div>`;
+  } else {
+    html = `<div class="hd">🔐 Permission</div><div class="q">${esc(p.icon)} ${esc(p.text)}</div>${p.detail ? `<pre>${esc(p.detail)}</pre>` : ''}
+      <div class="opts">${opt(1, 'Yes')}${opt(2, "Yes, and don't ask again")}${opt(3, 'No')}</div>`;
+  }
+  box.innerHTML = html;
+}
+
+// ---------- voice (needs a secure context: https or localhost) ----------
+const SR = window.isSecureContext && (window.SpeechRecognition || window.webkitSpeechRecognition);
+let recog = null;
+function listen(input, btn) {
+  if (!SR || recog) return;
+  recog = new SR(); recog.interimResults = true; recog.lang = navigator.language || 'en-US';
+  const base = input.value ? input.value + ' ' : '';
+  recog.onresult = e => { input.value = base + [...e.results].map(r => r[0].transcript).join(''); };
+  recog.onend = () => { btn.classList.remove('rec'); recog = null; };
+  btn.classList.add('rec'); buzz(10);
+  try { recog.start(); } catch { recog = null; btn.classList.remove('rec'); }
+}
+function updateCard(el, s) {
+  const st = statusOf(s);
+  el.classList.toggle('busy', st === 'busy');
+  setMood($('.mascot', el), st === 'busy' ? 'busy' : st === 'waiting' ? 'waiting' : null);
+  $('.title', el).textContent = s.title;
+  $('.sub', el).innerHTML = `<span>📁 ${esc(s.project)}</span><span>${esc((s.model || '').replace('claude-', ''))}</span>${s.window ? `<span>🖥 ws ${esc(s.window.workspace)}</span>` : ''}`;
+  const pill = $('.pill', el); pill.className = 'pill ' + st; pill.textContent = pillText[st] + (st !== 'busy' ? '' : ' ' + dur(Date.now() - s.statusSince));
+  const a = s.activity || { icon: '🌱', text: 'Just started' };
+  $('.ic', el).textContent = a.icon; $('.tx', el).textContent = a.text; $('.ago', el).textContent = ago(s.activityAt);
+  const limit = s.context > 200000 || /1m/i.test(s.model || '') ? 1e6 : 2e5;
+  const pct = Math.min(100, s.context / limit * 100);
+  const bar = $('.ctx i', el); bar.style.width = pct + '%'; bar.style.background = pct > 80 ? 'var(--red)' : pct > 55 ? 'var(--amber)' : 'var(--green)';
+  $('.cl1', el).textContent = `context ${fmtTok(s.context)} / ${fmtTok(limit)}`; $('.cl2', el).textContent = Math.round(pct) + '%';
+  renderPending(el, s);
+  const convo = (s.lastPrompt ? `<p class="you">${esc(s.lastPrompt)}</p>` : '') + (s.lastReply ? `<p class="cl">${esc(s.lastReply)}</p>` : '');
+  if ($('.convo', el).innerHTML !== convo) $('.convo', el).innerHTML = convo;
+}
+
+function renderSessions(list) {
+  const box = $('#sessions');
+  $('#count').textContent = list.length;
+  if (!list.length) {
+    cards.clear();
+    if (!$('.empty', box)) box.innerHTML = `<div class="card empty">${mascot('sleep')}<div>No Claude sessions open.<br>Tap ✨ to start one!</div></div>`;
+    return;
+  }
+  $('.empty', box)?.remove();
+  const seen = new Set();
+  for (const s of list) {
+    seen.add(s.pid);
+    let el = cards.get(s.pid);
+    if (!el) { el = sessionCard(s); cards.set(s.pid, el); }
+    if (box.children[list.indexOf(s)] !== el) box.insertBefore(el, box.children[list.indexOf(s)] || null); // only move when order changes
+    updateCard(el, s);
+    const was = prev.get(s.pid);
+    const now = statusOf(s);
+    if (was === 'busy' && now !== 'busy') {
+      // a Claude just finished! celebrate
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      burst($('.mascot', el), 'happy'); burst($('#hero svg'), 'happy');
+      hearts($('.mascot', el), 5); chime([784, 1046, 1318]); buzz([20, 60, 20]); confetti(24);
+      say(`“${s.title.slice(0, 32)}” is done! ✨`, 6000);
+    }
+    if (was && was !== 'waiting' && now === 'waiting') {
+      burst($('.mascot', el), 'squish'); chime([660, 880, 660, 880]); buzz([40, 50, 40, 50, 40]);
+      say(`“${s.title.slice(0, 28)}” needs you 🙋`, 6000);
+    }
+    prev.set(s.pid, now);
+  }
+  for (const [pid, el] of cards) if (!seen.has(pid)) { el.remove(); cards.delete(pid); prev.delete(pid); }
+}
+
+// ---------- usage ----------
+function renderUsage(u) {
+  const b = u.block;
+  const pct = b.budget ? Math.min(1, b.cost / b.budget) : 0;
+  $('#ringFill').style.strokeDashoffset = 314.16 * (1 - pct);
+  $('#ringFill').style.stroke = pct > .85 ? 'var(--red)' : pct > .6 ? 'var(--amber)' : 'var(--clay)';
+  $('#pct').textContent = Math.round(pct * 100) + '%';
+  $('#sBlock').textContent = fmtUsd(b.cost);
+  $('#sToday').textContent = fmtUsd(u.today.cost);
+  $('#sOut').textContent = fmtTok(u.today.out);
+  $('#sWeek').textContent = fmtUsd(u.week.cost);
+  $('#resetIn').textContent = b.end ? `⏳ resets in ${dur(b.end - Date.now())}` : '😴 no active window';
+  $('#msgs').textContent = b.msgs ? `${b.msgs} msgs · ${fmtTok(b.in + b.out + b.cw + b.cr)} tok` : '';
+  const max = Math.max(1, ...u.hourly);
+  const bars = $('#bars');
+  if (bars.children.length !== 24) bars.innerHTML = '<i></i>'.repeat(24);
+  [...bars.children].forEach((el, i) => { el.style.height = Math.max(3, u.hourly[i] / max * 54) + 'px'; el.title = fmtTok(u.hourly[i]); });
+  $('#speed').style.width = Math.min(100, u.outPerMin / 30) + '%';
+  $('#speedLbl').textContent = fmtTok(u.outPerMin) + ' tok/min';
+  const wmax = Math.max(0.01, ...u.daily.map(d => d.cost));
+  $('#week').innerHTML = u.daily.map(d => `<div><i style="--h:${Math.max(4, d.cost / wmax * 100)}%"></i>${esc(d.day)}<br>${fmtUsd(d.cost)}</div>`).join('');
+  const pmax = Math.max(0.01, ...u.projects.map(p => p.week));
+  $('#projs').innerHTML = u.projects.length ? `<h2 style="margin:6px 0 2px">By project · 7 days</h2>` + u.projects.map(p =>
+    `<div class="p"><span>📁 ${esc(p.name)}</span><b>${fmtUsd(p.week)}${p.today ? ` <small style="color:var(--muted)">(${fmtUsd(p.today)} today)</small>` : ''}</b><i style="width:${p.week / pmax * 100}%"></i></div>`).join('') : '';
+  // pet
+  const pet = u.pet;
+  $('#lv').textContent = `Lv ${pet.level}`;
+  $('#streak').textContent = `🔥 ${pet.streak} day${pet.streak === 1 ? '' : 's'}`;
+  $('#lifetime').textContent = `✍️ ${fmtTok(pet.totalOut)} written`;
+  $('#xp').style.width = Math.min(100, pet.into / pet.need * 100) + '%';
+  $('#xpl').textContent = `${fmtTok(pet.need - pet.into)} tokens to Lv ${pet.level + 1}${pet.level < 3 ? ' · 🎀 at Lv 3' : pet.level < 6 ? ' · 🥳 at Lv 6' : pet.level < 10 ? ' · 👑 at Lv 10' : ''}`;
+  if (lastLevel && pet.level > lastLevel) { confetti(); say(`LEVEL UP! Lv ${pet.level} 🎉`, 6000); chime([523, 659, 784, 1046]); }
+  lastLevel = pet.level;
+  return pct;
+}
+let lastLevel = 0;
+function accessoryFor(level) {
+  const h = new Date().getHours();
+  if (h < 5) return 'nightcap';
+  return level >= 10 ? 'crown' : level >= 6 ? 'party' : level >= 3 ? 'bow' : null;
+}
+function confetti(n = 40) {
+  const bits = ['🧡', '✨', '🎉', '⭐', '💛', '🟧', '🔶'];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('div');
+    c.className = 'confetti'; c.textContent = bits[i % bits.length];
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.setProperty('--dx', (Math.random() - .5) * 200 + 'px');
+    c.style.setProperty('--r', (Math.random() * 720 - 360) + 'deg');
+    c.style.setProperty('--t', (1.8 + Math.random() * 1.6) + 's');
+    c.style.animationDelay = Math.random() * .5 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 4500);
+  }
+}
+
+// ---------- laptop ----------
+const gauge = (label, val, txt, warn = 70, bad = 90) => {
+  const pct = Math.max(0, Math.min(100, val ?? 0)), off = 163.4 * (1 - pct / 100);
+  const col = val == null ? 'var(--line)' : pct >= bad ? 'var(--red)' : pct >= warn ? 'var(--amber)' : 'var(--green)';
+  return `<div class="gauge"><svg viewBox="0 0 64 64"><circle class="g-track" cx="32" cy="32" r="26" fill="none" stroke-width="8"/>
+    <circle class="g-fill" cx="32" cy="32" r="26" fill="none" stroke-width="8" stroke-dasharray="163.4" stroke-dashoffset="${off}" style="stroke:${col}"/></svg>
+    <div class="g-val">${txt}</div>${label}</div>`;
+};
+function renderVitals(v) {
+  $('#vitals').innerHTML = gauge('CPU', v.cpu, v.cpu + '%') + gauge('RAM', v.mem, v.mem + '%') +
+    gauge('Temp', v.temp, v.temp == null ? '–' : v.temp + '°', 70, 85) +
+    (v.battery == null ? gauge('Power', 100, '🔌', 101, 101) : gauge(v.charging ? 'Charging' : 'Battery', 100 - v.battery, (v.charging ? '⚡' : '') + v.battery + '%', 75, 90));
+  $('#load').textContent = `load ${v.load.toFixed(2)}`;
+  $('#uptime').textContent = `up ${dur(v.uptime * 1000)}`;
+}
+function renderServers(list) {
+  const shown = list.filter(s => !s.self);
+  $('#srvCount').textContent = shown.length;
+  $('#servers').innerHTML = shown.length ? shown.map(s => s.lan
+    ? `<a class="srv lan" href="http://${esc(location.hostname)}:${s.port}/" target="_blank" rel="noopener"><span class="port">:${s.port}</span><span class="nm">${esc(s.name)}</span><small>open ↗</small></a>`
+    : `<div class="srv"><span class="port">:${s.port}</span><span class="nm">${esc(s.name)}</span><small>laptop only</small></div>`).join('')
+    : `<div class="hint" style="margin:0">No dev servers running. Go build something ✨</div>`;
+}
+function renderTimer(t) {
+  const chip = $('#timer');
+  chip.classList.toggle('on', !!t);
+  if (t) { const left = Math.max(0, t.end - Date.now()); $('#timerTxt').textContent = `🍅 ${t.label} ${Math.floor(left / 60000)}:${String(Math.floor(left / 1000) % 60).padStart(2, '0')}`; }
+  if (lastTimer && !t && lastTimer.end <= Date.now() + 2000) { confetti(25); chime([784, 659, 784, 1046]); buzz([60, 80, 60]); say('Timer done! Stretch break 🧘', 6000); }
+  lastTimer = t;
+}
+let lastTimer = null;
+
+// ---------- hero mood ----------
+function renderHero(st) {
+  const sessions = st.sessions, busy = sessions.filter(s => statusOf(s) === 'busy');
+  const waiting = sessions.filter(s => statusOf(s) === 'waiting');
+  const pct = st.usage.block.budget ? st.usage.block.cost / st.usage.block.budget : 0;
+  let svg = $('#hero svg');
+  const mood = !sessions.length ? 'sleep' : busy.length ? 'busy' : waiting.length ? 'waiting' : null;
+  setMood(svg, mood);
+  svg.classList.toggle('stressed', pct > .8);
+  const acc = accessoryFor(st.usage.pet.level);
+  svg.querySelectorAll('.acc').forEach(g => g.classList.toggle('on', g.dataset.acc === acc));
+  svg.style.setProperty('--spin', Math.max(0.6, 3.2 - st.usage.outPerMin / 1500) + 's');
+  if (!sessions.length) say('zzz… no sessions open');
+  else if (waiting.length) say(`${waiting.length} Claude${waiting.length > 1 ? 's need' : ' needs'} you! 👋`);
+  else if (busy.length) say(`${busy.length} Claude${busy.length > 1 ? 's' : ''} cooking 🍳` + (pct > .8 ? ' (budget getting spicy 🌶️)' : ''));
+  else say(`all ${sessions.length} idle · your turn ✨`);
+}
+
+// ---------- live stream ----------
+let es, lastMsg = 0;
+function connect() {
+  es?.close();
+  es = new EventSource('api/events?t=' + encodeURIComponent(token));
+  es.onmessage = ev => {
+    lastMsg = Date.now();
+    const st = JSON.parse(ev.data);
+    $('#conn').classList.add('on'); $('#host').textContent = st.host;
+    renderUsage(st.usage); renderSessions(st.sessions); renderHero(st);
+    renderVitals(st.vitals); renderServers(st.servers || []); renderTimer(st.timer);
+  };
+  es.onerror = () => { $('#conn').classList.remove('on'); $('#host').textContent = 'reconnecting…'; };
+}
+connect();
+setInterval(() => { if (Date.now() - lastMsg > 8000) { $('#conn').classList.remove('on'); connect(); } }, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastMsg > 3000) connect(); });
+
+// keep the screen awake on the desk (needs https or localhost; silently skipped otherwise)
+async function wake() { try { await navigator.wakeLock?.request('screen'); } catch {} }
+wake(); document.addEventListener('visibilitychange', () => !document.hidden && wake());
+</script>
+</body>
+</html>

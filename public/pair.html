@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pair Claude Deck</title><link rel="icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root { --bg:#fbf6ef; --card:#fff; --ink:#2c211b; --muted:#8a7a6e; --clay:#d97757; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#1c1714; --card:#2a221d; --ink:#fbefe6; --muted:#a8968a; } }
+:root[data-theme="dark"] { --bg:#1c1714; --card:#2a221d; --ink:#fbefe6; --muted:#a8968a; }
+body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--ink); font-family:Nunito, system-ui, sans-serif; font-weight:700; padding:16px; box-sizing:border-box; }
+.card { background:var(--card); border-radius:28px; padding:28px; text-align:center; max-width:440px; box-shadow:0 10px 40px -16px rgba(120,70,40,.35); }
+img.logo { width:90px; animation:bob 2.4s ease-in-out infinite; } @keyframes bob { 50% { transform:translateY(-6px) rotate(8deg) } }
+#qr { background:#fff; padding:14px; border-radius:18px; display:inline-block; margin:14px 0; }
+a { color:var(--clay); word-break:break-all; font-size:13px; } p { color:var(--muted); }
+</style></head><body><div class="card">
+<img class="logo" src="icon.svg" alt=""><h1 style="margin:6px 0;font-weight:900">Pair your phone 🧡</h1>
+<p>Scan with your phone or iPad camera (same Wi-Fi), then <b>Share → Add to Home Screen</b> for the full-screen app.</p>
+<div id="qr"></div><div id="links"></div></div>
+<script>
+fetch('/api/pair').then(r => r.json()).then(j => {
+  if (!j.urls) throw new Error(j.error);
+  new QRCode(document.getElementById('qr'), { text: j.urls[0], width: 240, height: 240, colorDark: '#2c211b', colorLight: '#ffffff' });
+  document.getElementById('links').innerHTML = j.urls.map(u => `<div><a href="${u}">${u}</a></div>`).join('');
+}).catch(e => document.getElementById('links').textContent = 'Open this page on the laptop itself (localhost). ' + e.message);
+</script></body></html>
