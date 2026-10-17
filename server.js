@@ -35,6 +35,8 @@ function defaultConfig() {
     projectRoots: [path.join(HOME, 'Projects')],
     // Push notifications through ntfy.sh. Off until you switch it on from the app's settings.
     ntfy: { enabled: false, topic: '', server: 'https://ntfy.sh' },
+    pet: { name: 'Sparky', color: 'clay' },
+    highScore: 0,
     macros: [
       { emoji: '🧪', label: 'Run tests', text: 'run the tests and fix anything that fails' },
       { emoji: '📦', label: 'Commit', text: 'commit what you have with a good message' },
@@ -273,6 +275,46 @@ function recentSessions(liveIds, limit = 12) {
     });
   }
   return out.sort((a, b) => b.lastAt - a.lastAt).slice(0, limit);
+}
+
+// ---------- search past conversations ----------
+function textOf(o) {
+  const c = o.message && o.message.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.filter(x => x.type === 'text').map(x => x.text).join('\n');
+  return '';
+}
+async function searchSessions(q) {
+  q = q.trim();
+  if (q.length < 2 || q.length > 100) throw new Error('search for 2–100 characters');
+  // grep finds candidate files fast (q is an argument, never a shell string); then we pull readable snippets out
+  const hits = await new Promise(res => execFile('grep', ['-r', '-l', '-i', '-F', '--include=*.jsonl', '--', q, PROJECTS],
+    { timeout: 15000, maxBuffer: 4 << 20 }, (e, out) => res((out || '').split('\n').filter(Boolean))));
+  const ql = q.toLowerCase();
+  const results = [];
+  for (const file of hits.sort((a, b) => (fileMtime.get(b) || 0) - (fileMtime.get(a) || 0)).slice(0, 40)) {
+    const f = files.get(file);
+    if (f && f.info.entrypoint && f.info.entrypoint !== 'cli') continue;
+    const snippets = [];
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      if (!line.toLowerCase().includes(ql)) continue;
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if ((o.type !== 'user' && o.type !== 'assistant') || o.isMeta || o.isSidechain) continue;
+      const text = textOf(o);
+      const i = text.toLowerCase().indexOf(ql);
+      if (i < 0 || text.startsWith('<')) continue;
+      snippets.push({ who: o.type === 'user' ? 'you' : 'claude', text: (i > 60 ? '…' : '') + text.slice(Math.max(0, i - 60), i + q.length + 100) + '…', ts: Date.parse(o.timestamp || 0) });
+      if (snippets.length >= 3) break;
+    }
+    if (!snippets.length) continue;
+    const sid = path.basename(file, '.jsonl');
+    results.push({
+      sessionId: sid, title: (f && (f.info.customTitle || f.info.aiTitle)) || 'Untitled session',
+      project: path.basename((f && f.info.cwd) || '') || '~', lastAt: (f && f.info.lastAt) || fileMtime.get(file) || 0, snippets,
+    });
+    if (results.length >= 15) break;
+  }
+  return results;
 }
 
 // ---------- activity log ----------
@@ -522,9 +564,10 @@ async function refreshPlan() {
 function notify(title, body, tags = 'orange_heart') {
   execFile('notify-send', ['-a', 'Claude Deck', title, body], () => {});
   if (!config.ntfy.enabled || !config.ntfy.topic) return;
+  // titles are RFC 2047-encoded so emoji survive the HTTP header
   fetch(`${config.ntfy.server}/${config.ntfy.topic}`, {
     method: 'POST', body,
-    headers: { Title: Buffer.from(title).toString('latin1') === title ? title : 'Claude Deck', Tags: tags, Click: (lanUrls()[0] || '').replace(/\?t=.*/, '') },
+    headers: { Title: `=?UTF-8?B?${Buffer.from(title).toString('base64')}?=`, Tags: tags, Click: (lanUrls()[0] || '').replace(/\?t=.*/, '') },
   }).catch(e => console.error('ntfy failed:', e.message));
 }
 const lastStatus = new Map();
@@ -542,7 +585,7 @@ function watchTransitions(sessions) {
   for (const s of sessions) {
     const was = lastStatus.get(s.pid);
     if (!was && watchedOnce) logEvent('🌱', `Opened “${s.title}”`);
-    if (was === 'busy' && s.status === 'idle') { notify('✨ Claude is done', s.title, 'sparkles'); logEvent('✨', `“${s.title}” finished`); }
+    if (was === 'busy' && s.status === 'idle') { notify(`✨ ${s.title}`, s.lastReply ? s.lastReply.slice(0, 180) : 'Claude is done', 'sparkles'); logEvent('✨', `“${s.title}” finished`); }
     if (was && was !== 'waiting' && s.status === 'waiting') {
       notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand');
       logEvent('🙋', `“${s.title}” needs you`);
@@ -682,6 +725,13 @@ async function doAction(a) {
       if (prev && prev !== s.window.address) await run('hyprctl', ['dispatch', 'focuswindow', `address:${prev}`]).catch(() => {});
       return { ok: true, msg: '👀 ' + s.title, image: 'data:image/jpeg;base64,' + img.toString('base64') };
     }
+    case 'screen': {
+      // the whole laptop screen, small enough to stream to a phone every couple of seconds
+      const img = await new Promise((res, rej) => execFile('grim', ['-s', '0.5', '-t', 'jpeg', '-q', '60', '-'],
+        { encoding: 'buffer', timeout: 5000, maxBuffer: 32 << 20 }, (e, out) => e ? rej(new Error('screenshot failed')) : res(out)));
+      return { ok: true, msg: '', image: 'data:image/jpeg;base64,' + img.toString('base64') };
+    }
+    case 'search': return { ok: true, msg: '', results: await searchSessions(String(a.q || '')) };
     case 'diff': {
       const s = (await liveSessions()).find(x => x.pid === a.pid);
       if (!s) throw new Error('session is gone');
@@ -740,8 +790,10 @@ async function doAction(a) {
       // only known project dirs: the path ends up in a shell command line
       const dir = (projects().find(p => p.path === a.cwd) || { path: HOME }).path;
       const sq = v => `'${v.replace(/'/g, `'\\''`)}'`; // single-quote for the shell hyprctl exec runs
-      await run('hyprctl', ['dispatch', 'exec', `ghostty --working-directory=${sq(dir)} -e ${config.claudeCommand}`]);
-      return { ok: true, msg: '✨ New Claude in ' + path.basename(dir) };
+      const prompt = String(a.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+      await run('hyprctl', ['dispatch', 'exec', `ghostty --working-directory=${sq(dir)} -e ${config.claudeCommand}${prompt ? ' ' + sq(prompt) : ''}`]);
+      if (prompt) logEvent('🚀', `Started a task in ${path.basename(dir)}: ${prompt.slice(0, 60)}`);
+      return { ok: true, msg: (prompt ? '🚀 Task started in ' : '✨ New Claude in ') + path.basename(dir) };
     }
     case 'deck': {
       const b = config.deck.find(x => x.id === a.id);
@@ -770,9 +822,11 @@ function projects() {
   return list;
 }
 
+const PET_COLORS = ['clay', 'pink', 'sky', 'mint', 'grape', 'gold', 'rainbow'];
 function publicConfig() {
   return {
     deck: config.deck.map(({ cmd, ...b }) => b), projects: projects(), macros: config.macros,
+    pet: config.pet, highScore: config.highScore || 0,
     budget: config.blockBudgetUsd, ntfy: { enabled: config.ntfy.enabled, topic: config.ntfy.enabled ? config.ntfy.topic : '', server: config.ntfy.server },
   };
 }
@@ -781,6 +835,13 @@ function updateSettings(b) {
     config.macros = b.macros.slice(0, 24).map(m => ({ emoji: String(m.emoji || '💬').slice(0, 8), label: String(m.label || '').slice(0, 24), text: String(m.text || '').slice(0, 2000) })).filter(m => m.label && m.text);
   }
   if (typeof b.budget === 'number' && b.budget > 0 && b.budget < 10000) config.blockBudgetUsd = b.budget;
+  if (b.pet && typeof b.pet === 'object') {
+    config.pet = {
+      name: String(b.pet.name ?? config.pet.name).trim().slice(0, 20) || 'Sparky',
+      color: PET_COLORS.includes(b.pet.color) ? b.pet.color : config.pet.color,
+    };
+  }
+  if (Number.isInteger(b.highScore) && b.highScore > (config.highScore || 0) && b.highScore < 1e6) config.highScore = b.highScore;
   if (typeof b.ntfy === 'boolean') {
     config.ntfy.enabled = b.ntfy;
     if (b.ntfy && !config.ntfy.topic) config.ntfy.topic = 'claude-deck-' + crypto.randomBytes(9).toString('hex');

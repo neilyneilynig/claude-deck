@@ -27,7 +27,10 @@ def watch(page, tag):
         def fake(route):
             body = json.loads(route.request.post_data or '{}')
             actions.append(body)
-            extra = {'diff': {'diff': SAMPLE_DIFF}, 'clip-get': {'clip': 'https://example.com'}}.get(body.get('type'), {})
+            extra = {'diff': {'diff': SAMPLE_DIFF}, 'clip-get': {'clip': 'https://example.com'},
+                     'screen': {'image': 'data:image/gif;base64,R0lGODlhAQABAAAAACw='},
+                     'search': {'results': [{'sessionId': '00000000-0000-0000-0000-000000000000', 'title': 'Found <i>it</i>', 'project': 'demo',
+                                             'lastAt': 0, 'snippets': [{'who': 'you', 'text': 'the axolotl <b>bug</b>'}]}]}}.get(body.get('type'), {})
             route.fulfill(json={'ok': True, 'msg': 'test ok', **extra})
         page.route('**/api/action', fake)
 
@@ -103,6 +106,34 @@ def run(browser, tag, w, h):
     page.click('#clipSend'); page.wait_for_timeout(400)
     page.fill('#clipOut', 'hi laptop'); page.click('#clipToLaptop'); page.wait_for_timeout(300)
 
+    # task launcher with a first prompt
+    page.click('#deck .key[data-type="new-session"]'); page.wait_for_timeout(400)
+    page.fill('#taskText', 'fix the login bug'); page.locator('#sheet button[data-path]').nth(1).click(); page.wait_for_timeout(400)
+    check(any(a.get('type') == 'new-session' and a.get('prompt') == 'fix the login bug' for a in actions), f'[{tag}] task prompt not sent')
+    # search
+    page.fill('#searchQ', 'axolotl'); page.press('#searchQ', 'Enter'); page.wait_for_timeout(500)
+    check(page.locator('#results .result').count() == 1, f'[{tag}] search results missing')
+    check(page.locator('#results i, #results b').count() == 0, f'[{tag}] search results not escaped!')
+    check(page.locator('#results mark').count() == 1, f'[{tag}] search highlight missing')
+    # live screen streams then stops when closed
+    page.click('#deck .key[data-type="screen"]'); page.wait_for_timeout(2600)
+    shots = sum(1 for a in actions if a.get('type') == 'screen')
+    check(shots >= 2, f'[{tag}] live screen did not refresh ({shots})')
+    page.click('#sheetbg', position={'x': 10, 'y': 10}); page.wait_for_timeout(2500)
+    check(sum(1 for a in actions if a.get('type') == 'screen') <= shots + 1, f'[{tag}] live screen kept polling after close')
+    # mini-game: start, play a bit, close
+    page.click('#deck .key[data-type="game"]'); page.wait_for_timeout(400)
+    page.click('#gStart'); page.mouse.move(100, 500); page.wait_for_timeout(1500)
+    check(page.locator('#gOver').is_hidden(), f'[{tag}] game did not start')
+    page.click('#sheetbg', position={'x': 10, 'y': 10}); page.wait_for_timeout(300)
+    # keyboard shortcuts
+    page.keyboard.press('1'); page.wait_for_timeout(300)
+    check(page.locator('.sess.current').count() == 1, f'[{tag}] shortcut 1 did not select a session')
+    page.keyboard.press('?'); page.wait_for_timeout(300)
+    check(page.locator('#sheet.show .kbd').count() == 1, f'[{tag}] help sheet missing')
+    page.keyboard.press('Escape'); page.wait_for_timeout(300)
+    check(page.locator('#sheet.show').count() == 0, f'[{tag}] Esc did not close sheet')
+
     # settings: open, budget readout, add + delete a macro (only on first run; restores the list)
     page.click('#setBtn'); page.wait_for_timeout(400)
     check(page.locator('#sheet.show #budget').count() == 1, f'[{tag}] settings did not open')
@@ -112,6 +143,9 @@ def run(browser, tag, w, h):
         page.click('#madd button'); page.wait_for_timeout(800)
         check(page.locator('#medit .m').count() == before + 1, f'[{tag}] macro add failed')
         page.locator('#medit .m').last.locator('button').click(); page.wait_for_timeout(800)
+        check(page.locator('#swatches .swatch').count() == 7, f'[{tag}] pet swatches missing')
+        page.locator('#swatches .swatch[data-color="clay"]').click(); page.wait_for_timeout(500)
+        check(page.evaluate('document.documentElement.dataset.pet') == 'clay', f'[{tag}] pet color not applied')
         check(page.locator('#medit .m').count() == before, f'[{tag}] macro delete failed')
     page.click('#sheetbg', position={'x': 10, 'y': 10})
     page.wait_for_timeout(500)

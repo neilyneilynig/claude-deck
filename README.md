@@ -10,6 +10,7 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 - celebrates with confetti, a chime and a buzz when a session finishes
 - levels up as you write tokens: 🎀 at Lv 3, 🥳 at Lv 6, 👑 at Lv 10 (and a nightcap after midnight)
 - daily 🔥 streak and an XP bar
+- 🎨 name your pet and pick its color; new colors unlock as you level up (🌈 at Lv 10)
 
 **Usage**
 - **live session and weekly limits** from your Claude plan, plus today, 7 days, live tok/min, 24h sparkline, daily bars
@@ -26,10 +27,15 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 - 🔀 **diff viewer**: review the session's uncommitted changes on your phone (finds the repo Claude is actually editing)
 
 **Recent sessions**: closed sessions with ▶ **Resume**, which reopens them on the laptop with `claude --resume`
+- 🔎 **search past chats** (“where did I talk about…?”) with highlighted snippets and Resume
+- 🚀 **start a task from your phone**: type what you want, pick a project, and a new Claude opens already working on it
+- 👋 close a session (tap twice to confirm)
 
 **Deck**
 - new Claude in any `~/Projects` dir, screenshot, mute, night light, DND, stay awake, browser, lock
 - 🍅 focus timer that pings both laptop and phone
+- 📺 **live screen**: watch the laptop screen from your phone (refreshes every 2s)
+- 🎮 **Token Catcher**: a tiny game for while Claude cooks; catch 🪙, dodge 🐛, with a shared high score
 
 **Laptop**
 - CPU, RAM, temperature and battery gauges
@@ -40,6 +46,8 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 **Activity log** of sessions starting, finishing and needing you, and a **Today** recap.
 
 **Push** (optional): “Claude is done / needs you” pings through [ntfy](https://ntfy.sh), even when the page is closed.
+
+**⌨️ Keyboard shortcuts** (iPad with a keyboard): `1`–`9` pick a session, `f` focus, `p` peek, `d` diff, `/` type, `n` new task, `s` screen, `k` search, `?` help.
 
 ## Run
     node server.js        # or: ln -s $PWD/bin/claude-deck ~/.local/bin/ && claude-deck
