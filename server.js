@@ -34,7 +34,7 @@ function defaultConfig() {
     },
     projectRoots: [path.join(HOME, 'Projects')],
     // Push notifications through ntfy.sh. Off until you switch it on from the app's settings.
-    ntfy: { enabled: false, topic: '', server: 'https://ntfy.sh' },
+    ntfy: { enabled: false, topic: '', server: 'https://ntfy.sh', includeText: false },
     pet: { name: 'Sparky', color: 'clay' },
     highScore: 0,
     macros: [
@@ -561,9 +561,11 @@ async function refreshPlan() {
 }
 
 // ---------- notifications ----------
-function notify(title, body, tags = 'orange_heart') {
+// publicBody: what goes to ntfy unless you opted into sending Claude's text (topics on ntfy.sh are public-by-name)
+function notify(title, body, tags = 'orange_heart', publicBody = body) {
   execFile('notify-send', ['-a', 'Claude Deck', title, body], () => {});
   if (!config.ntfy.enabled || !config.ntfy.topic) return;
+  if (!config.ntfy.includeText) body = publicBody;
   // titles are RFC 2047-encoded so emoji survive the HTTP header
   fetch(`${config.ntfy.server}/${config.ntfy.topic}`, {
     method: 'POST', body,
@@ -585,9 +587,9 @@ function watchTransitions(sessions) {
   for (const s of sessions) {
     const was = lastStatus.get(s.pid);
     if (!was && watchedOnce) logEvent('🌱', `Opened “${s.title}”`);
-    if (was === 'busy' && s.status === 'idle') { notify(`✨ ${s.title}`, s.lastReply ? s.lastReply.slice(0, 180) : 'Claude is done', 'sparkles'); logEvent('✨', `“${s.title}” finished`); }
+    if (was === 'busy' && s.status === 'idle') { notify(`✨ ${s.title}`, s.lastReply ? s.lastReply.slice(0, 180) : 'Claude is done', 'sparkles', 'Claude is done'); logEvent('✨', `“${s.title}” finished`); }
     if (was && was !== 'waiting' && s.status === 'waiting') {
-      notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand');
+      notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand', s.title);
       logEvent('🙋', `“${s.title}” needs you`);
     }
     lastStatus.set(s.pid, s.status);
@@ -827,7 +829,7 @@ function publicConfig() {
   return {
     deck: config.deck.map(({ cmd, ...b }) => b), projects: projects(), macros: config.macros,
     pet: config.pet, highScore: config.highScore || 0,
-    budget: config.blockBudgetUsd, ntfy: { enabled: config.ntfy.enabled, topic: config.ntfy.enabled ? config.ntfy.topic : '', server: config.ntfy.server },
+    budget: config.blockBudgetUsd, ntfy: { includeText: !!config.ntfy.includeText, enabled: config.ntfy.enabled, topic: config.ntfy.enabled ? config.ntfy.topic : '', server: config.ntfy.server },
   };
 }
 function updateSettings(b) {
@@ -842,6 +844,7 @@ function updateSettings(b) {
     };
   }
   if (Number.isInteger(b.highScore) && b.highScore > (config.highScore || 0) && b.highScore < 1e6) config.highScore = b.highScore;
+  if (typeof b.ntfyText === 'boolean') config.ntfy.includeText = b.ntfyText;
   if (typeof b.ntfy === 'boolean') {
     config.ntfy.enabled = b.ntfy;
     if (b.ntfy && !config.ntfy.topic) config.ntfy.topic = 'claude-deck-' + crypto.randomBytes(9).toString('hex');
