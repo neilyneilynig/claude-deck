@@ -101,6 +101,10 @@ function describeTool(c) {
     default: return { icon: '🔧', text: c.name.replace(/^mcp__[^_]+__/, '') };
   }
 }
+const TOOL_KINDS = {
+  Edit: 'edit', Write: 'edit', MultiEdit: 'edit', NotebookEdit: 'edit', Bash: 'bash', Read: 'read',
+  Grep: 'search', Glob: 'search', WebSearch: 'web', WebFetch: 'web', Agent: 'agent', Task: 'agent',
+};
 function pendingOf(c, ts) {
   const p = { id: c.id, name: c.name, at: ts, ...describeTool(c) };
   if (c.name === 'AskUserQuestion') {
@@ -126,6 +130,7 @@ function ingestLine(line, info) {
   if (o.type === 'ai-title') { info.aiTitle = o.aiTitle; return; }
   if (o.type === 'custom-title') { info.customTitle = o.customTitle; return; }
   const ts = o.timestamp ? Date.parse(o.timestamp) : 0;
+  if (o.entrypoint) info.entrypoint = o.entrypoint;
   if (o.type === 'user' && !o.isSidechain && !o.isMeta && o.message) {
     const c = o.message.content;
     if (Array.isArray(c)) {
@@ -134,6 +139,8 @@ function ingestLine(line, info) {
     const text = typeof c === 'string' ? c : Array.isArray(c) ? (c.find(x => x.type === 'text') || {}).text : null;
     if (text && !text.startsWith('<') && !text.startsWith('[Request interrupted')) {
       info.lastPrompt = text.slice(0, 200); info.lastPromptAt = ts; info.pending = null;
+      info.turns = (info.turns || 0) + 1; if (!info.firstPrompt) info.firstPrompt = text.slice(0, 200);
+      if (o.cwd) info.cwd = o.cwd;
     }
     return;
   }
@@ -148,16 +155,29 @@ function ingestLine(line, info) {
     };
     if (ts && !seenKeys.has(key)) {
       seenKeys.add(key);
+      info.cost = (info.cost || 0) + costOf(rec);
       const d = daily.get(dayKey(ts)) || { out: 0, cost: 0, msgs: 0 };
       d.out += rec.out; d.cost += costOf(rec); d.msgs++;
       daily.set(dayKey(ts), d);
     }
     if (ts && Date.now() - ts < WINDOW_MS) usage.set(key, rec);
+    if (o.cwd && !info.cwd) info.cwd = o.cwd;
     if (!o.isSidechain) {
       info.model = m.model;
+      info.lastAt = ts;
       info.context = rec.in + rec.cw + rec.cr;
       for (const c of m.content || []) {
-        if (c.type === 'tool_use') { info.activity = describeTool(c); info.activityAt = ts; info.pending = pendingOf(c, ts); }
+        if (c.type === 'tool_use') {
+          info.activity = describeTool(c); info.activityAt = ts; info.pending = pendingOf(c, ts);
+          const kind = TOOL_KINDS[c.name] || 'other';
+          const st = info.stats || (info.stats = { edit: 0, bash: 0, read: 0, search: 0, web: 0, agent: 0, other: 0 });
+          if (!info.seenTools) info.seenTools = new Set();
+          if (!info.seenTools.has(c.id)) {
+            info.seenTools.add(c.id); st[kind]++;
+            const fp = c.input && c.input.file_path;
+            if (kind === 'edit' && fp) { info.files = (info.files || []).filter(f => f !== fp); info.files.push(fp); if (info.files.length > 30) info.files.shift(); }
+          }
+        }
         else if (c.type === 'text' && c.text.trim()) { info.lastReply = c.text.trim().slice(0, 240); info.activity = { icon: '💬', text: 'Replied' }; info.activityAt = ts; }
       }
     }
@@ -239,6 +259,43 @@ function feed(sessionId, limit = 40) {
   return out.slice(-limit);
 }
 
+// ---------- recent sessions you can resume ----------
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function recentSessions(liveIds, limit = 12) {
+  const out = [];
+  for (const [sid, file] of sessionFile) {
+    if (liveIds.has(sid) || !UUID.test(sid)) continue;
+    const f = files.get(file);
+    if (!f || !f.info.turns || !f.info.cwd || (f.info.entrypoint && f.info.entrypoint !== 'cli')) continue; // skip SDK/bot runs
+    out.push({
+      sessionId: sid, title: f.info.customTitle || f.info.aiTitle || f.info.firstPrompt.slice(0, 60), project: path.basename(f.info.cwd) || '~',
+      lastAt: f.info.lastAt || fileMtime.get(file) || 0, cost: f.info.cost || 0, turns: f.info.turns, lastPrompt: f.info.lastPrompt,
+    });
+  }
+  return out.sort((a, b) => b.lastAt - a.lastAt).slice(0, limit);
+}
+
+// ---------- activity log ----------
+const events = []; // newest last
+function logEvent(icon, text) {
+  events.push({ t: Date.now(), icon, text });
+  if (events.length > 60) events.shift();
+}
+
+// ---------- media ----------
+let media = { volume: null, muted: false, player: null };
+function refreshMedia() {
+  execFile('wpctl', ['get-volume', '@DEFAULT_AUDIO_SINK@'], { timeout: 1500 }, (e, out) => {
+    if (e) return;
+    const m = out.match(/([\d.]+)/); media.volume = m ? Math.round(parseFloat(m[1]) * 100) : null; media.muted = /MUTED/.test(out);
+  });
+  execFile('playerctl', ['metadata', '--format', '{{playerName}}\t{{status}}\t{{artist}}\t{{title}}'], { timeout: 1500 }, (e, out) => {
+    if (e || !out.trim()) { media.player = null; return; }
+    const [name, status, artist, title] = out.trim().split('\t');
+    media.player = { name, status, artist, title };
+  });
+}
+
 // ---------- live sessions ----------
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } }
 
@@ -304,6 +361,8 @@ async function liveSessions() {
       model: info.model || null, context: info.context || 0,
       activity: info.activity || null, activityAt: info.activityAt || null,
       lastPrompt: info.lastPrompt || null, lastReply: info.lastReply || null,
+      cost: info.cost || 0, stats: info.stats || null, turns: info.turns || 0, absFiles: info.files || [],
+      files: (info.files || []).slice(-8).reverse().map(f => path.relative(s.cwd, f).startsWith('..') ? f.replace(HOME, '~') : path.relative(s.cwd, f)),
       pending: needsYou ? p : null,
       window: null,
     });
@@ -319,6 +378,12 @@ function levelOf(totalOut) {
   let lvl = 1, need = LEVEL_STEP, floor = 0;
   while (totalOut >= floor + need) { floor += need; need = Math.round(need * 1.5); lvl++; }
   return { level: lvl, into: totalOut - floor, need };
+}
+function todaySessions() {
+  const sod = new Date(); sod.setHours(0, 0, 0, 0);
+  let n = 0;
+  for (const f of files.values()) if ((f.info.lastAt || 0) >= sod.getTime() && f.info.turns && (!f.info.entrypoint || f.info.entrypoint === 'cli')) n++;
+  return n;
 }
 function usageStats() {
   const now = Date.now();
@@ -338,6 +403,9 @@ function usageStats() {
   }, { in: 0, out: 0, cw: 0, cr: 0, cost: 0, msgs: 0 });
   const block = blockActive ? sum(all.filter(u => u.ts >= blockStart)) : sum([]);
   const todayList = all.filter(u => u.ts >= sod.getTime());
+  const hours = Array.from({ length: 24 }, () => 0);
+  for (const u of todayList) hours[new Date(u.ts).getHours()] += u.out;
+  const busiestHour = hours.some(Boolean) ? hours.indexOf(Math.max(...hours)) : null;
   const today = sum(todayList);
   const week = sum(all.filter(u => u.ts >= now - 7 * 864e5));
   const hourly = Array.from({ length: 24 }, () => 0);
@@ -368,6 +436,7 @@ function usageStats() {
     today, week, hourly, outPerMin: lastMin, models, daily: days,
     projects: Object.entries(projects).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.week - a.week).slice(0, 6),
     pet: { ...levelOf(totalOut), streak, totalOut, totalCost, best, daysActive: daily.size },
+    todayExtra: { busiestHour, sessions: todaySessions() },
   };
 }
 
@@ -421,7 +490,9 @@ function refreshServers() {
 // The same endpoint Claude Code's /usage reads, called with your own Claude login from ~/.claude/.credentials.json.
 // Claude Code refreshes that token itself; if it's expired we just fall back to the transcript estimate.
 let plan = null; // { session: {pct, resetsAt, severity}, weekly: {...}, fetchedAt } or { error }
+let planNextAt = 0; // backoff after 429s
 async function refreshPlan() {
+  if (Date.now() < planNextAt) return;
   let tok;
   try { tok = JSON.parse(fs.readFileSync(path.join(CLAUDE, '.credentials.json'), 'utf8')).claudeAiOauth.accessToken; }
   catch { plan = { error: 'not logged in with a Claude plan' }; return; }
@@ -429,7 +500,12 @@ async function refreshPlan() {
     const r = await fetch('https://api.anthropic.com/api/oauth/usage', {
       headers: { Authorization: `Bearer ${tok}`, 'anthropic-beta': 'oauth-2025-04-20' }, signal: AbortSignal.timeout(8000),
     });
-    if (!r.ok) { plan = { ...(plan || {}), error: `usage API said ${r.status}` }; return; }
+    if (!r.ok) {
+      if (r.status === 429) planNextAt = Date.now() + Math.max(60, Number(r.headers.get('retry-after')) || 300) * 1000;
+      plan = { ...(plan || {}), error: `usage API said ${r.status}` };
+      return;
+    }
+    planNextAt = 0;
     const d = await r.json();
     const pick = (lim, fallback) => {
       const l = (d.limits || []).find(x => x.kind === lim) || null;
@@ -452,25 +528,49 @@ function notify(title, body, tags = 'orange_heart') {
   }).catch(e => console.error('ntfy failed:', e.message));
 }
 const lastStatus = new Map();
+let watchedOnce = false;
 let lastPlanPct = null;
 function watchPlan() {
   const p = plan && plan.session && plan.session.pct;
   if (p == null) return;
   if (lastPlanPct === null || p < lastPlanPct) { lastPlanPct = p; return; } // no alert on startup or after a reset
+  for (const mark of [80, 95]) if (lastPlanPct < mark && p >= mark) logEvent('🌶️', `Session limit hit ${mark}%`);
   for (const mark of [80, 95]) if (lastPlanPct < mark && p >= mark) notify(`🌶️ Session limit at ${p}%`, `Resets ${new Date(plan.session.resetsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`, 'hot_pepper');
   lastPlanPct = p;
 }
 function watchTransitions(sessions) {
   for (const s of sessions) {
     const was = lastStatus.get(s.pid);
-    if (was === 'busy' && s.status === 'idle') notify('✨ Claude is done', s.title, 'sparkles');
-    if (was && was !== 'waiting' && s.status === 'waiting') notify('🙋 Claude needs you', `${s.title}: ${s.pending.text}`, 'raising_hand');
+    if (!was && watchedOnce) logEvent('🌱', `Opened “${s.title}”`);
+    if (was === 'busy' && s.status === 'idle') { notify('✨ Claude is done', s.title, 'sparkles'); logEvent('✨', `“${s.title}” finished`); }
+    if (was && was !== 'waiting' && s.status === 'waiting') {
+      notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand');
+      logEvent('🙋', `“${s.title}” needs you`);
+    }
     lastStatus.set(s.pid, s.status);
   }
+  for (const [pid] of lastStatus) if (!sessions.some(s => s.pid === pid)) { lastStatus.delete(pid); logEvent('👋', 'A session closed'); }
+  watchedOnce = true;
 }
 
 // ---------- focus timer ----------
 let timer = null; // { end, minutes, label }
+
+// The git repo a session is working in: its own folder, else the repo of the file it edited most recently
+// (sessions started in ~ usually work inside ~/Projects/<something>).
+function gitRoot(dir) {
+  return new Promise(res => execFile('git', ['rev-parse', '--show-toplevel'], { cwd: dir, timeout: 3000 }, (e, o) => res(e ? null : o.trim())));
+}
+async function sessionRepo(s) {
+  const tried = new Set();
+  for (const dir of [s.cwd, ...s.absFiles.slice().reverse().map(f => path.dirname(f))]) {
+    if (tried.has(dir) || !fs.existsSync(dir)) continue;
+    tried.add(dir);
+    const root = await gitRoot(dir);
+    if (root && root !== HOME) return root;
+  }
+  return null;
+}
 
 // ---------- actions ----------
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -582,11 +682,59 @@ async function doAction(a) {
       if (prev && prev !== s.window.address) await run('hyprctl', ['dispatch', 'focuswindow', `address:${prev}`]).catch(() => {});
       return { ok: true, msg: '👀 ' + s.title, image: 'data:image/jpeg;base64,' + img.toString('base64') };
     }
+    case 'diff': {
+      const s = (await liveSessions()).find(x => x.pid === a.pid);
+      if (!s) throw new Error('session is gone');
+      const repo = await sessionRepo(s);
+      if (!repo) throw new Error(`no git repo found for “${s.title}”`);
+      const git = args => new Promise(res => execFile('git', args, { cwd: repo, timeout: 8000, maxBuffer: 8 << 20 }, (e, o, er) => res({ ok: !e, out: o || er || '' })));
+      const [stat, diff, untracked] = await Promise.all([git(['diff', 'HEAD', '--stat', '--color=never']), git(['diff', 'HEAD', '--color=never', '--no-ext-diff']), git(['ls-files', '--others', '--exclude-standard'])]);
+      const MAX = 120_000;
+      return { ok: true, msg: '🔀 ' + path.basename(repo), diff: { project: path.basename(repo), stat: stat.out.trim(), patch: diff.out.slice(0, MAX), truncated: diff.out.length > MAX, untracked: untracked.out.trim().split('\n').filter(Boolean).slice(0, 50) } };
+    }
+    case 'resume': {
+      if (!UUID.test(String(a.sessionId))) throw new Error('bad session id');
+      const file = sessionFile.get(a.sessionId), f = file && files.get(file);
+      if (!f || !f.info.cwd || !fs.existsSync(f.info.cwd)) throw new Error("can't find that session's folder");
+      const sq = v => `'${v.replace(/'/g, `'\\''`)}'`;
+      await run('hyprctl', ['dispatch', 'exec', `ghostty --working-directory=${sq(f.info.cwd)} -e ${config.claudeCommand} --resume ${a.sessionId}`]);
+      logEvent('🔁', `Resumed “${f.info.customTitle || f.info.aiTitle || 'a session'}”`);
+      return { ok: true, msg: '🔁 Resuming in ' + path.basename(f.info.cwd) };
+    }
+    case 'clip-set': {
+      const text = String(a.text || '').slice(0, 100_000);
+      if (!text) throw new Error('nothing to copy');
+      await writeClipboard(text, 'text/plain;charset=utf-8');
+      return { ok: true, msg: '📋 On the laptop clipboard' };
+    }
+    case 'clip-get': {
+      const out = await new Promise(res => execFile('wl-paste', ['--no-newline', '--type', 'text'], { timeout: 2000, maxBuffer: 4 << 20 }, (e, o) => res(e ? null : o)));
+      if (out == null) throw new Error('laptop clipboard is empty (or not text)');
+      return { ok: true, msg: '📋 Laptop clipboard', clip: out.slice(0, 50_000) };
+    }
+    case 'open-url': {
+      let u; try { u = new URL(String(a.url)); } catch { throw new Error("that's not a link"); }
+      if (!['http:', 'https:'].includes(u.protocol)) throw new Error('only http(s) links');
+      spawn('xdg-open', [u.href], { detached: true, stdio: 'ignore' }).unref();
+      return { ok: true, msg: '🔗 Opened on the laptop' };
+    }
+    case 'media': {
+      const cmds = {
+        'play-pause': ['playerctl', ['play-pause']], next: ['playerctl', ['next']], prev: ['playerctl', ['previous']],
+        'vol-up': ['wpctl', ['set-volume', '-l', '1.0', '@DEFAULT_AUDIO_SINK@', '5%+']], 'vol-down': ['wpctl', ['set-volume', '@DEFAULT_AUDIO_SINK@', '5%-']],
+        mute: ['wpctl', ['set-mute', '@DEFAULT_AUDIO_SINK@', 'toggle']],
+      };
+      const c = cmds[a.cmd]; if (!c) throw new Error('unknown media key');
+      await run(...c); refreshMedia();
+      return { ok: true, msg: { 'play-pause': '⏯', next: '⏭', prev: '⏮', 'vol-up': '🔊 +5%', 'vol-down': '🔉 −5%', mute: '🔇' }[a.cmd] };
+    }
     case 'git': {
       const s = (await liveSessions()).find(x => x.pid === a.pid);
       if (!s) throw new Error('session is gone');
-      const out = await new Promise(res => exec('git status -sb && git log --oneline -3', { cwd: s.cwd, timeout: 5000 }, (e, o, er) => res(o || er || 'not a git repo')));
-      return { ok: true, msg: '🌿 ' + s.project, output: out.trim().slice(0, 2000) };
+      const repo = await sessionRepo(s);
+      if (!repo) throw new Error(`no git repo found for “${s.title}”`);
+      const out = await new Promise(res => exec('git status -sb && git log --oneline -3', { cwd: repo, timeout: 5000 }, (e, o, er) => res(o || er || '')));
+      return { ok: true, msg: '🌿 ' + path.basename(repo), output: out.trim().slice(0, 2000) };
     }
     case 'new-session': {
       // only known project dirs: the path ends up in a shell command line
@@ -649,8 +797,14 @@ async function tick() {
     scanAll();
     const sessions = await liveSessions();
     watchTransitions(sessions); watchPlan();
-    if (timer && Date.now() >= timer.end) { notify('🍅 Timer done!', `${timer.label} (${timer.minutes} min) — take a break`, 'tomato'); timer = null; }
-    state = { t: Date.now(), host: os.hostname(), sessions, usage: usageStats(), plan, vitals: vitals(), servers, timer };
+    if (plan && plan.session && plan.session.resetsAt && plan.session.resetsAt < Date.now()) {
+      plan.session = { pct: 0, resetsAt: null, severity: 'normal', expired: true }; // the window reset; don't show the old %
+      planNextAt = Math.min(planNextAt, Date.now() + 20_000);
+      setTimeout(refreshPlan, 25_000);
+    }
+    if (timer && Date.now() >= timer.end) { logEvent('🍅', `${timer.label} timer done`); notify('🍅 Timer done!', `${timer.label} (${timer.minutes} min) — take a break`, 'tomato'); timer = null; }
+    const liveIds = new Set(sessions.map(s => s.sessionId));
+    state = { t: Date.now(), host: os.hostname(), sessions, recent: recentSessions(liveIds), usage: usageStats(), plan, vitals: vitals(), servers, timer, media, events: events.slice(-25) };
     const data = `data: ${JSON.stringify(state)}\n\n`;
     for (const res of clients) res.write(data);
   } catch (e) { console.error('tick failed:', e); }
@@ -729,8 +883,9 @@ const t0 = Date.now();
 scanAll();
 console.log(`   ${files.size} transcripts, ${seenKeys.size} messages over ${daily.size} days in ${Date.now() - t0}ms`);
 refreshServers(); setInterval(refreshServers, 5000);
-refreshPlan(); setInterval(refreshPlan, 60_000);
+refreshPlan(); setInterval(refreshPlan, 90_000);
 startIdleDetector();
+refreshMedia(); setInterval(refreshMedia, 3000);
 tick();
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`\n   Pair your phone: open http://localhost:${config.port}/pair on this laptop and scan the QR`);

@@ -41,7 +41,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .col > * { min-width: 0; }
 @media (min-width: 900px) {
   .app { grid-template-columns: minmax(300px, 380px) 1fr minmax(260px, 340px); align-items: start; }
-  .col { position: sticky; top: 16px; }
+
 }
 .col { display: grid; gap: 16px; }
 .card { background: var(--card); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); border: 1px solid var(--line); }
@@ -290,6 +290,65 @@ h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; p
 .madd input, .madd textarea { font: inherit; font-size: 16px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 12px; padding: 8px 10px; outline: none; user-select: text; -webkit-user-select: text; min-width: 0; }
 .madd textarea { grid-column: 1 / -1; resize: vertical; min-height: 60px; }
 .madd button { grid-column: 1 / -1; background: var(--clay); color: #fff; border-radius: 12px; padding: 10px; font-weight: 900; }
+/* ---------- session stats & files ---------- */
+.sstats { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.sstats span { font-size: 11px; font-weight: 800; background: var(--bg2); border-radius: 99px; padding: 3px 9px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sstats span.money { background: var(--peach); color: var(--clay); }
+.touched { margin-top: 10px; font-size: 11px; color: var(--muted); display: flex; gap: 5px; flex-wrap: wrap; }
+.touched code { background: var(--bg2); border-radius: 8px; padding: 2px 7px; font-family: ui-monospace, monospace; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sess .keys { grid-template-columns: repeat(3, 1fr); }
+
+/* ---------- diff viewer ---------- */
+.diffstat { font-size: 12px; color: var(--muted); margin: -4px 0 10px; }
+.dfile { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.dfile summary { padding: 9px 12px; background: var(--bg2); font-size: 13px; font-weight: 800; cursor: pointer; display: flex; gap: 8px; align-items: center; list-style: none; }
+.dfile summary::-webkit-details-marker { display: none; }
+.dfile summary .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
+.dfile summary .add { color: var(--green); } .dfile summary .del { color: var(--red); }
+.dcode { margin: 0; font-family: ui-monospace, monospace; font-size: 11px; line-height: 1.5; overflow-x: auto; padding: 6px 0; user-select: text; -webkit-user-select: text; }
+.dcode div { padding: 0 12px; white-space: pre; min-width: max-content; }
+.dcode .a { background: rgba(93,187,122,.16); } .dcode .d { background: rgba(224,93,93,.16); } .dcode .h { color: #7c9cff; font-weight: 700; }
+
+/* ---------- recent ---------- */
+.recent { display: grid; gap: 8px; margin-top: 12px; }
+.rec { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 10px 12px; }
+.rec .meta { flex: 1; min-width: 0; }
+.rec .t { font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rec button { background: var(--peach); color: var(--clay); border-radius: 12px; padding: 8px 12px; font-weight: 900; font-size: 13px; flex: none; }
+.rec button:active { transform: scale(.95); }
+.morebtn { width: 100%; margin-top: 8px; font-size: 12px; color: var(--muted); padding: 6px; }
+
+/* ---------- media & clipboard ---------- */
+.player { display: flex; align-items: center; gap: 10px; background: var(--bg2); border-radius: 16px; padding: 10px 12px; margin-top: 14px; }
+.player .np { flex: 1; min-width: 0; font-size: 12px; }
+.player .np b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player .np span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.mbtns { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+.mbtns button, .clipbtns button { background: var(--bg2); border-radius: 12px; padding: 9px 0; font-size: 16px; transition: transform .1s; }
+.mbtns button:active, .clipbtns button:active { transform: scale(.92); background: var(--peach); }
+.vol { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 8px; }
+.vol .meter { flex: 1; height: 6px; border-radius: 9px; background: var(--bg2); overflow: hidden; }
+.vol .meter i { display: block; height: 100%; background: var(--clay2); border-radius: 9px; transition: width .4s; }
+.clipbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.clipbtns button { font-size: 12px; font-weight: 800; padding: 10px 6px; }
+.cliptext { width: 100%; min-height: 120px; font: inherit; font-size: 15px; font-weight: 600; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 14px; padding: 10px; user-select: text; -webkit-user-select: text; resize: vertical; }
+.sheetbtns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sheetbtns button { flex: 1; background: var(--clay); color: #fff; border-radius: 14px; padding: 11px; font-weight: 900; min-width: 120px; }
+.sheetbtns button.ghost { background: var(--bg2); color: var(--ink); }
+
+/* ---------- activity & today ---------- */
+.log { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.log div { display: flex; gap: 8px; font-size: 12px; align-items: baseline; padding: 4px 2px; border-bottom: 1px dashed var(--line); }
+.log div:last-child { border-bottom: 0; }
+.log span:nth-child(2) { flex: 1; min-width: 0; }
+.log small { color: var(--muted); font-size: 10px; flex: none; }
+.today { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.today div { background: var(--bg2); border-radius: 14px; padding: 10px 6px; text-align: center; }
+.today b { display: block; font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.today span { font-size: 10px; color: var(--muted); }
+.todayline { font-size: 13px; margin-top: 10px; text-align: center; color: var(--muted); font-weight: 700; }
+
 .confetti { position: fixed; top: -20px; font-size: 18px; pointer-events: none; z-index: 40; animation: fall var(--t, 2.4s) linear forwards; }
 @keyframes fall { to { transform: translate(var(--dx, 0), 110vh) rotate(var(--r, 360deg)); } }
 
@@ -428,6 +487,22 @@ function showPeek(j) {
   if (!j || !j.image) return;
   openSheet(`<h3>👀 ${esc(j.msg.replace(/^👀 /, ''))}</h3><img src="${j.image}" alt="Screenshot of the session" style="width:100%;border-radius:14px;display:block">`);
 }
+function showDiff(j) {
+  if (!j || !j.diff) return;
+  const d = j.diff;
+  const files = [];
+  let cur = null;
+  for (const line of d.patch.split('\n')) {
+    if (line.startsWith('diff --git')) { cur = { name: line.replace(/^diff --git a\/(.*) b\/.*$/, '$1'), lines: [], add: 0, del: 0 }; files.push(cur); continue; }
+    if (!cur || /^(index |--- |\+\+\+ |new file|deleted file|similarity|rename )/.test(line)) continue;
+    if (line.startsWith('+')) cur.add++; else if (line.startsWith('-')) cur.del++;
+    cur.lines.push(line);
+  }
+  const body = files.map((f, i) => `<details class="dfile"${i < 3 ? ' open' : ''}><summary><span class="fn">${esc(f.name)}</span><span class="add">+${f.add}</span><span class="del">−${f.del}</span></summary>
+    <div class="dcode">${f.lines.slice(0, 600).map(l => `<div class="${l[0] === '+' ? 'a' : l[0] === '-' ? 'd' : l.startsWith('@@') ? 'h' : ''}">${esc(l) || ' '}</div>`).join('')}${f.lines.length > 600 ? '<div class="h">… more lines on the laptop</div>' : ''}</div></details>`).join('');
+  const untracked = d.untracked.length ? `<details class="dfile"><summary><span class="fn">🆕 ${d.untracked.length} new untracked file${d.untracked.length > 1 ? 's' : ''}</span></summary><div class="dcode">${d.untracked.map(f => `<div class="a">${esc(f)}</div>`).join('')}</div></details>` : '';
+  openSheet(`<h3>🔀 ${esc(d.project)}</h3><div class="diffstat">${esc(d.stat.split('\n').pop() || 'No changes since the last commit ✨')}${d.truncated ? ' · (big diff, trimmed)' : ''}</div>${body}${untracked}`);
+}
 async function act(body) {
   buzz(12);
   try {
@@ -499,11 +574,21 @@ $('#root').innerHTML = `
       <div class="week" id="week"></div>
       <div class="projs" id="projs"></div>
     </section>
+    <section class="card">
+      <h2>Today</h2>
+      <div class="today" id="today"></div>
+      <div class="todayline" id="todayLine"></div>
+    </section>
   </div>
   <div class="col" style="position:static">
     <section>
       <h2 style="margin-left:6px">Sessions <span class="count" id="count">0</span></h2>
       <div class="sessions" id="sessions"></div>
+    </section>
+    <section>
+      <h2 style="margin:8px 0 0 6px">Recent <span class="count" id="recCount">0</span></h2>
+      <div class="recent" id="recent"></div>
+      <button class="morebtn" id="recMore">show more</button>
     </section>
   </div>
   <div class="col">
@@ -515,10 +600,18 @@ $('#root').innerHTML = `
       <h2>Laptop</h2>
       <div class="vitals" id="vitals"></div>
       <div class="vfoot"><span id="load"></span><span id="uptime"></span></div>
+      <div class="player"><span style="font-size:22px">🎵</span><div class="np"><b id="npTitle">Nothing playing</b><span id="npArtist"></span></div></div>
+      <div class="mbtns" id="mbtns">${[['prev', '⏮'], ['play-pause', '⏯'], ['next', '⏭'], ['vol-down', '🔉'], ['vol-up', '🔊'], ['mute', '🔇']].map(([c, e]) => `<button data-media="${c}" aria-label="${c}">${e}</button>`).join('')}</div>
+      <div class="vol"><span id="volIcon">🔈</span><div class="meter"><i id="volBar"></i></div><span id="volLbl"></span></div>
+      <div class="clipbtns"><button id="clipGet">📥 Laptop clipboard</button><button id="clipSend">📤 Send to laptop</button></div>
     </section>
     <section class="card">
       <h2>Dev servers <span class="count" id="srvCount">0</span></h2>
       <div class="servers" id="servers"></div>
+    </section>
+    <section class="card">
+      <h2>Activity</h2>
+      <div class="log" id="log"></div>
     </section>
   </div>
 </div>`;
@@ -644,6 +737,7 @@ const SESSION_KEYS = [
   { k: 'compact', e: '🗜️', l: '/compact', a: pid => ({ type: 'send', pid, text: '/compact' }) },
   { k: 'mode', e: '🔁', l: 'Mode', a: pid => ({ type: 'key', pid, key: 'shift-tab' }) },
   { k: 'git', e: '🌿', l: 'Git', a: pid => ({ type: 'git', pid }) },
+  { k: 'diff', e: '🔀', l: 'Diff', a: pid => ({ type: 'diff', pid }) },
   { k: 'enter', e: '⏎', l: 'Enter', a: pid => ({ type: 'key', pid, key: 'enter' }) },
 ];
 const open = new Set();
@@ -658,9 +752,11 @@ function sessionCard(s) {
     <div class="row">${mascot()}<div class="meta"><div class="title"></div><div class="sub"></div></div><span class="pill"></span></div>
     <div class="activity"><span class="ic"></span><span class="tx"></span><span class="ago"></span></div>
     <div class="ctx"><i></i></div><div class="ctxlbl"><span class="cl1"></span><span class="cl2"></span></div>
+    <div class="sstats"></div>
     <div class="pending" hidden></div>
     <div class="drawer"><div>
       <div class="convo"></div>
+      <div class="touched"></div>
       <div class="keys">${SESSION_KEYS.map(k => `<button class="key" data-k="${k.k}"><span class="e">${k.e}</span><span class="l">${k.l}</span></button>`).join('')}</div>
       <div class="macros"></div>
       <form class="say"><input placeholder="Tell Claude something…" enterkeyhint="send" autocomplete="off">${SR ? '<button type="button" class="mic" aria-label="Hold to talk">🎙️</button>' : ''}<button>Send</button></form>
@@ -698,7 +794,7 @@ function sessionCard(s) {
   $('.keys', el).addEventListener('click', e => {
     const k = e.target.closest('.key'); if (!k) return;
     pressFx(k, e);
-    act(SESSION_KEYS.find(x => x.k === k.dataset.k).a(+el.dataset.pid)).then(showPeek);
+    act(SESSION_KEYS.find(x => x.k === k.dataset.k).a(+el.dataset.pid)).then(j => { showPeek(j); showDiff(j); });
   });
   $('.say', el).addEventListener('submit', async e => {
     e.preventDefault();
@@ -777,6 +873,12 @@ function updateCard(el, s) {
   const bar = $('.ctx i', el); bar.style.width = pct + '%'; bar.style.background = pct > 80 ? 'var(--red)' : pct > 55 ? 'var(--amber)' : 'var(--green)';
   $('.cl1', el).textContent = `context ${fmtTok(s.context)} / ${fmtTok(limit)}`; $('.cl2', el).textContent = Math.round(pct) + '%';
   renderPending(el, s);
+  const ss = s.stats || {};
+  const chips = [`<span class="money">💸 ${fmtUsd(s.cost || 0)}</span>`, `<span>💬 ${s.turns || 0}</span>`]
+    .concat([['edit', '✏️'], ['bash', '⌨️'], ['read', '👓'], ['web', '🌐'], ['agent', '🤖']].filter(([k]) => ss[k]).map(([k, e]) => `<span>${e} ${ss[k]}</span>`)).join('');
+  if ($('.sstats', el).innerHTML !== chips) $('.sstats', el).innerHTML = chips;
+  const touched = (s.files || []).length ? '✏️ ' + s.files.map(f => `<code>${esc(f)}</code>`).join('') : '';
+  if ($('.touched', el).innerHTML !== touched) $('.touched', el).innerHTML = touched;
   const convo = (s.lastPrompt ? `<p class="you">${esc(s.lastPrompt)}</p>` : '') + (s.lastReply ? `<p class="cl">${esc(s.lastReply)}</p>` : '');
   if ($('.convo', el).innerHTML !== convo) $('.convo', el).innerHTML = convo;
 }
@@ -822,7 +924,8 @@ function renderUsage(u, plan) {
   const live = plan && plan.session;
   const pct = live ? Math.min(1, live.pct / 100) : b.budget ? Math.min(1, b.cost / b.budget) : 0;
   const resetAt = live ? live.resetsAt : b.end;
-  $('#src').textContent = live ? 'live' : 'estimate';
+  const stale = live && plan.fetchedAt && Date.now() - plan.fetchedAt > 5 * 60e3;
+  $('#src').textContent = live ? (live.expired ? 'reset ✨' : stale ? 'stale' : 'live') : 'estimate';
   $('#src').title = live ? 'Real numbers from your Claude plan' : (plan && plan.error) || 'Estimated from transcripts';
   $('#ringLbl').textContent = live ? 'used' : 'of budget';
   const w = plan && plan.weekly;
@@ -839,7 +942,7 @@ function renderUsage(u, plan) {
   $('#sToday').textContent = fmtUsd(u.today.cost);
   $('#sOut').textContent = fmtTok(u.today.out);
   $('#sWeek').textContent = fmtUsd(u.week.cost);
-  $('#resetIn').textContent = resetAt && resetAt > Date.now() ? `⏳ resets in ${dur(resetAt - Date.now())}` : '😴 no active window';
+  $('#resetIn').textContent = resetAt && resetAt > Date.now() ? `⏳ resets in ${dur(resetAt - Date.now())}` : live && live.expired ? '✨ fresh window' : '😴 no active window';
   $('#msgs').textContent = b.msgs ? `${b.msgs} msgs · ${fmtTok(b.in + b.out + b.cw + b.cr)} tok` : '';
   const max = Math.max(1, ...u.hourly);
   const bars = $('#bars');
@@ -916,6 +1019,75 @@ function renderTimer(t) {
 }
 let lastTimer = null;
 
+// ---------- recent sessions ----------
+let recShowAll = false;
+function renderRecent(list) {
+  $('#recCount').textContent = list.length;
+  const shown = recShowAll ? list : list.slice(0, 4);
+  const html = shown.map(r => `<div class="rec"><div class="meta"><div class="t">${esc(r.title)}</div>
+    <div class="s">📁 ${esc(r.project)} · ${ago(r.lastAt)} ago · 💬 ${r.turns} · ${fmtUsd(r.cost)}</div></div>
+    <button data-resume="${esc(r.sessionId)}">▶ Resume</button></div>`).join('') || '<div class="hint" style="margin:0 6px">Closed sessions show up here.</div>';
+  if ($('#recent').innerHTML !== html) $('#recent').innerHTML = html;
+  $('#recMore').hidden = list.length <= 4;
+  $('#recMore').textContent = recShowAll ? 'show less' : `show ${list.length - 4} more`;
+}
+$('#recMore').addEventListener('click', () => { recShowAll = !recShowAll; if (lastState) renderRecent(lastState.recent || []); });
+$('#recent').addEventListener('click', e => {
+  const b = e.target.closest('[data-resume]'); if (!b) return;
+  b.textContent = '…'; act({ type: 'resume', sessionId: b.dataset.resume }).then(j => j && burst($('#hero svg'), 'happy'));
+});
+
+// ---------- media ----------
+function renderMedia(m) {
+  if (!m) return;
+  const p = m.player;
+  $('#npTitle').textContent = p ? (p.title || p.name) : 'Nothing playing';
+  $('#npArtist').textContent = p ? [p.status === 'Playing' ? '▶ playing' : '⏸ paused', p.artist, p.name].filter(Boolean).join(' · ') : 'Start some music on the laptop 🎶';
+  $('#volBar').style.width = (m.volume ?? 0) + '%';
+  $('#volIcon').textContent = m.muted ? '🔇' : m.volume > 60 ? '🔊' : m.volume > 20 ? '🔉' : '🔈';
+  $('#volLbl').textContent = m.muted ? 'muted' : m.volume == null ? '' : m.volume + '%';
+}
+$('#mbtns').addEventListener('click', e => {
+  const b = e.target.closest('[data-media]'); if (!b) return;
+  act({ type: 'media', cmd: b.dataset.media });
+});
+
+// ---------- clipboard bridge ----------
+$('#clipGet').addEventListener('click', async () => {
+  const j = await act({ type: 'clip-get' }); if (!j) return;
+  const isUrl = /^https?:\/\/\S+$/.test(j.clip.trim());
+  openSheet(`<h3>📥 Laptop clipboard</h3><textarea class="cliptext" id="clipText" readonly>${esc(j.clip)}</textarea>
+    <div class="sheetbtns"><button id="clipCopy">📋 Copy on this device</button>${isUrl ? `<a class="ghost" href="${esc(j.clip.trim())}" target="_blank" rel="noopener" style="flex:1;text-align:center;background:var(--bg2);border-radius:14px;padding:11px;font-weight:900;color:var(--ink);text-decoration:none">🔗 Open here</a>` : ''}</div>`);
+  $('#clipCopy').addEventListener('click', async () => {
+    const t = $('#clipText');
+    try { await navigator.clipboard.writeText(t.value); toast('Copied 📋'); }
+    catch { t.removeAttribute('readonly'); t.focus(); t.select(); try { document.execCommand('copy'); toast('Copied 📋'); } catch { toast('Selected — tap Copy'); } }
+  });
+});
+$('#clipSend').addEventListener('click', () => {
+  openSheet(`<h3>📤 Send to laptop</h3><textarea class="cliptext" id="clipOut" placeholder="Paste or type something…"></textarea>
+    <div class="sheetbtns"><button id="clipToLaptop">📋 Copy to laptop</button><button class="ghost" id="clipOpen">🔗 Open link on laptop</button></div>`);
+  $('#clipToLaptop').addEventListener('click', () => { const v = $('#clipOut').value; act({ type: 'clip-set', text: v }).then(j => j && closeSheet()); });
+  $('#clipOpen').addEventListener('click', () => { const v = $('#clipOut').value.trim(); act({ type: 'open-url', url: v }).then(j => j && closeSheet()); });
+});
+
+// ---------- activity ----------
+function renderLog(evts) {
+  const html = (evts || []).slice().reverse().map(e => `<div><span>${esc(e.icon)}</span><span>${esc(e.text)}</span><small>${ago(e.t)}</small></div>`).join('')
+    || '<div class="hint" style="margin:0">Things that happen show up here ✨</div>';
+  if ($('#log').innerHTML !== html) $('#log').innerHTML = html;
+}
+
+// ---------- today recap ----------
+function renderToday(u) {
+  const x = u.todayExtra || {};
+  $('#today').innerHTML = `<div><b>${x.sessions ?? 0}</b><span>sessions</span></div><div><b>${u.today.msgs}</b><span>replies</span></div><div><b>${fmtUsd(u.today.cost)}</b><span>spent</span></div>`;
+  const top = u.projects.filter(p => p.today > 0).sort((a, b) => b.today - a.today)[0];
+  const hr = x.busiestHour == null ? null : new Date(2000, 0, 1, x.busiestHour).toLocaleTimeString([], { hour: 'numeric' });
+  const vibe = u.today.out > 300_000 ? 'absolute machine 🦾' : u.today.out > 100_000 ? 'big day 💪' : u.today.out > 10_000 ? 'nice and steady 🌱' : 'warming up ☕';
+  $('#todayLine').textContent = u.today.msgs ? [top && `top: ${top.name}`, hr && `busiest ${hr}`, vibe].filter(Boolean).join(' · ') : 'nothing yet today, go make something ✨';
+}
+
 // ---------- hero mood ----------
 function renderHero(st) {
   const sessions = st.sessions, busy = sessions.filter(s => statusOf(s) === 'busy');
@@ -935,7 +1107,7 @@ function renderHero(st) {
 }
 
 // ---------- live stream ----------
-let es, lastMsg = 0;
+let es, lastMsg = 0, lastState = null;
 function connect() {
   es?.close();
   es = new EventSource('api/events?t=' + encodeURIComponent(token));
@@ -945,6 +1117,8 @@ function connect() {
     $('#conn').classList.add('on'); $('#host').textContent = st.host;
     renderUsage(st.usage, st.plan); renderSessions(st.sessions); renderHero(st);
     renderVitals(st.vitals); renderServers(st.servers || []); renderTimer(st.timer);
+    renderRecent(st.recent || []); renderMedia(st.media); renderLog(st.events); renderToday(st.usage);
+    lastState = st;
   };
   es.onerror = () => { $('#conn').classList.remove('on'); $('#host').textContent = 'reconnecting…'; };
 }

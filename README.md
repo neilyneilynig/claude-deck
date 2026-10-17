@@ -22,12 +22,22 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 - keys: Focus · Yes · Continue · Stop · /compact · Mode · Git · Enter
 - **quick prompts** you can edit (run tests, commit, review…), type-to-Claude, and hold-to-talk 🎙️ (https/localhost only)
 - 📜 **live feed** of the conversation
+- per-session stats: 💸 cost, turns, edits, commands, reads, plus the files Claude touched
+- 🔀 **diff viewer**: review the session's uncommitted changes on your phone (finds the repo Claude is actually editing)
+
+**Recent sessions**: closed sessions with ▶ **Resume**, which reopens them on the laptop with `claude --resume`
 
 **Deck**
 - new Claude in any `~/Projects` dir, screenshot, mute, night light, DND, stay awake, browser, lock
 - 🍅 focus timer that pings both laptop and phone
 
-**Laptop**: CPU, RAM, temperature, battery gauges, plus a list of **dev servers** (tap to open LAN ones on your phone).
+**Laptop**
+- CPU, RAM, temperature and battery gauges
+- 🎵 media controls and volume
+- 📋 **clipboard bridge**: grab the laptop clipboard, or send text or a link to it (🔗 opens on the laptop)
+- a list of **dev servers** (tap to open LAN ones on your phone)
+
+**Activity log** of sessions starting, finishing and needing you, and a **Today** recap.
 
 **Push** (optional): “Claude is done / needs you” pings through [ntfy](https://ntfy.sh), even when the page is closed.
 
