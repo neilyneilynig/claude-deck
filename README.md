@@ -12,13 +12,13 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 - daily 🔥 streak and an XP bar
 
 **Usage**
-- rolling 5h window ring, today, 7 days, live tok/min, 24h sparkline, daily bars
+- **live session and weekly limits** from your Claude plan, plus today, 7 days, live tok/min, 24h sparkline, daily bars
 - spend by project
 - figures are API-equivalent $ estimates, read from `~/.claude/projects/*.jsonl`
 
 **Sessions**: every open `claude`, with
 - live status and current tool, context bar, last prompt and reply
-- an **answer prompts from your phone** panel: AskUserQuestion options, plan approval, permission prompts
+- a **“Claude needs you”** panel when a session waits on a question or permission, with 📸 **Peek** to screenshot the window onto your phone
 - keys: Focus · Yes · Continue · Stop · /compact · Mode · Git · Enter
 - **quick prompts** you can edit (run tests, commit, review…), type-to-Claude, and hold-to-talk 🎙️ (https/localhost only)
 - 📜 **live feed** of the conversation
@@ -45,7 +45,16 @@ Open `http://localhost:4747/pair` on the laptop and scan the QR. On iOS, use **S
 - delete `token` to un-pair every device
 
 ## Requirements
-Linux + Hyprland + Ghostty + `wtype`, Node 18+. There are no npm dependencies.
+Linux + Hyprland + Ghostty, Node 18+, `wl-clipboard`, `grim` and `hypridle`. There are no npm dependencies.
 
-Typing actions refuse to run while hyprlock is up, or when the target window didn't actually get focus, so keystrokes never land somewhere else.
+How it reaches into your sessions: it focuses the session's window, pastes text with Shift+Insert through
+Hyprland's `sendshortcut`, presses Enter, then gives focus straight back and restores your clipboard.
+- It waits for a 1-second pause in your keyboard and mouse use first (a private `hypridle`), so it never grabs focus
+  while you're typing on the laptop. If you keep typing for 6 seconds, it gives up and tells you.
+- It refuses while hyprlock is up, or if the window didn't really get focus.
+- Live plan limits come from the same endpoint as `/usage`, using your Claude login. Without a login, the ring falls back to an estimate.
+
 Anyone with the pairing link can control your sessions, so keep it on your own network.
+
+## Test
+    python3 test/ui_test.py    # Playwright: clicks through everything, fails on any console error

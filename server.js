@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { execFile, exec } = require('child_process');
+const { execFile, exec, spawn } = require('child_process');
 
 const HOME = os.homedir();
 const CLAUDE = path.join(HOME, '.claude');
@@ -477,23 +477,52 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const run = (cmd, args) => new Promise((res, rej) => execFile(cmd, args, { timeout: 5000 }, (e, out, err) => e ? rej(new Error(err || e.message)) : res(out)));
 const locked = () => new Promise(res => execFile('pgrep', ['-x', 'hyprlock'], e => res(!e)));
 
-// strict: refuse unless the session's window really has keyboard focus, so wtype never types somewhere else
+const activeWindow = async () => JSON.parse(await run('hyprctl', ['activewindow', '-j']) || '{}').address;
+
+// strict: refuse unless the session's window really has keyboard focus, so keys never land somewhere else
 async function focus(pid, strict = false) {
   const s = (await liveSessions()).find(x => x.pid === pid);
   if (!s) throw new Error('session is gone');
   if (!s.window) throw new Error(`can't find a window for “${s.title}”`);
   if (strict && await locked()) throw new Error('laptop is locked 🔒 — unlock it first');
   await run('hyprctl', ['dispatch', 'focuswindow', `address:${s.window.address}`]);
-  await sleep(120);
-  if (strict) {
-    const active = JSON.parse(await run('hyprctl', ['activewindow', '-j']) || '{}');
-    if (active.address !== s.window.address) throw new Error("couldn't grab focus, didn't type anything");
-  }
+  await sleep(80);
+  if (strict && await activeWindow() !== s.window.address) throw new Error("couldn't grab focus, didn't type anything");
   return s;
 }
-// Typing long text with wtype races Claude Code's TUI (dropped/reordered characters), so paste it instead:
-// save the clipboard, paste with shift+insert, press Enter, then put the clipboard back.
-const { spawn } = require('child_process');
+
+// Keys go through Hyprland's sendshortcut: the real keymap, no virtual keyboard (wtype) to install per keypress.
+// Ghostty ignores input to unfocused windows, so we focus the session, act fast, then hand focus straight back:
+// anything you type on the laptop during that window would land in the session.
+const sendKey = (addr, mods, key) => run('hyprctl', ['dispatch', 'sendshortcut', `${mods}, ${key}, address:${addr}`]);
+// A second hypridle with a 1s timeout tells us when you've stopped typing on the laptop, so a send from the
+// phone never steals focus mid-keystroke (your keys would land in the session).
+const IDLE_FLAG = path.join(process.env.XDG_RUNTIME_DIR || os.tmpdir(), `claude-deck-idle-${process.pid}`);
+let idleDetector = null;
+function startIdleDetector() {
+  const conf = IDLE_FLAG + '.conf';
+  fs.writeFileSync(conf, `general {\n  ignore_dbus_inhibit = true\n  ignore_systemd_inhibit = true\n}\nlistener {\n  timeout = 1\n  on-timeout = touch ${IDLE_FLAG}\n  on-resume = rm -f ${IDLE_FLAG}\n}\n`);
+  idleDetector = spawn('hypridle', ['-c', conf], { stdio: 'ignore' });
+  idleDetector.on('error', () => { idleDetector = null; console.log('   (hypridle not found: sends won\'t wait for you to stop typing)'); });
+  idleDetector.on('exit', () => { idleDetector = null; });
+  const cleanup = () => { try { idleDetector && idleDetector.kill(); fs.rmSync(IDLE_FLAG, { force: true }); fs.rmSync(conf, { force: true }); } catch {} };
+  process.on('exit', cleanup);
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanup(); process.exit(0); });
+}
+async function waitForPause(maxMs = 6000) {
+  if (!idleDetector) return;
+  for (const end = Date.now() + maxMs; Date.now() < end; await sleep(100)) if (fs.existsSync(IDLE_FLAG)) return;
+  throw new Error("someone's typing on the laptop ⌨️ — try again in a sec");
+}
+async function withSession(pid, fn) {
+  await waitForPause();
+  const prev = await activeWindow().catch(() => null);
+  const s = await focus(pid, true);
+  try { await fn(s.window.address); }
+  finally { if (prev && prev !== s.window.address) await run('hyprctl', ['dispatch', 'focuswindow', `address:${prev}`]).catch(() => {}); }
+}
+
+// Long text is pasted, not typed: save the clipboard, paste with shift+insert, press Enter, restore the clipboard.
 function readClipboard() {
   return new Promise(res => execFile('wl-paste', ['--list-types'], { timeout: 1000 }, (e, types) => {
     const type = !e && types.split('\n').find(Boolean);
@@ -508,20 +537,22 @@ function writeClipboard(data, type) {
     p.stdin.end(data, () => setTimeout(() => res(true), 80));
   });
 }
-async function pasteText(text) {
+async function sendText(pid, text) {
   const saved = await readClipboard();
   await writeClipboard(text, 'text/plain;charset=utf-8');
-  // one wtype process for paste + Enter: back-to-back wtype runs swap virtual keymaps and Hyprland
-  // can decode a key with the stale one (Return arriving as a stray letter)
-  await run('wtype', ['-s', '120', '-M', 'shift', '-k', 'Insert', '-m', 'shift', '-s', '300', '-k', 'Return']);
-  await sleep(200);
-  if (saved) await writeClipboard(saved.data, saved.type);
+  try {
+    await withSession(pid, async addr => {
+      await sendKey(addr, 'SHIFT', 'Insert');
+      await sleep(250); // Ghostty reads the clipboard asynchronously; Enter must come after the paste lands
+      await sendKey(addr, '', 'Return');
+    });
+  } finally { if (saved) await writeClipboard(saved.data, saved.type); }
 }
 const KEYS = {
-  escape: ['-k', 'Escape'], backspace: ['-k', 'BackSpace'], enter: ['-k', 'Return'], up: ['-k', 'Up'], down: ['-k', 'Down'], tab: ['-k', 'Tab'], space: ['-k', 'space'],
-  'shift-tab': ['-M', 'shift', '-k', 'Tab', '-m', 'shift'], 'ctrl-c': ['-M', 'ctrl', 'c', '-m', 'ctrl'],
+  escape: ['', 'Escape'], backspace: ['', 'BackSpace'], enter: ['', 'Return'], up: ['', 'Up'], down: ['', 'Down'], tab: ['', 'Tab'], space: ['', 'space'],
+  'shift-tab': ['SHIFT', 'Tab'], 'ctrl-c': ['CTRL', 'C'],
 };
-for (let i = 1; i <= 9; i++) KEYS[i] = [String(i)];
+for (let i = 1; i <= 9; i++) KEYS[i] = ['', String(i)];
 
 async function doAction(a) {
   switch (a.type) {
@@ -529,13 +560,12 @@ async function doAction(a) {
     case 'send': {
       const text = String(a.text || '').slice(0, 4000);
       if (!text) throw new Error('nothing to send');
-      await focus(a.pid, true);
-      await pasteText(text);
+      await sendText(a.pid, text);
       return { ok: true, msg: 'Sent 💌' };
     }
     case 'key': {
       const k = KEYS[a.key]; if (!k) throw new Error('unknown key');
-      await focus(a.pid, true); await run('wtype', ['-s', '120', ...k]);
+      await withSession(a.pid, addr => sendKey(addr, ...k));
       return { ok: true, msg: 'Pressed ' + a.key };
     }
     case 'peek': {
@@ -700,6 +730,7 @@ scanAll();
 console.log(`   ${files.size} transcripts, ${seenKeys.size} messages over ${daily.size} days in ${Date.now() - t0}ms`);
 refreshServers(); setInterval(refreshServers, 5000);
 refreshPlan(); setInterval(refreshPlan, 60_000);
+startIdleDetector();
 tick();
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`\n   Pair your phone: open http://localhost:${config.port}/pair on this laptop and scan the QR`);
