@@ -561,11 +561,11 @@ async function refreshPlan() {
 }
 
 // ---------- notifications ----------
-// publicBody: what goes to ntfy unless you opted into sending Claude's text (topics on ntfy.sh are public-by-name)
-function notify(title, body, tags = 'orange_heart', publicBody = body) {
+// pub: the generic title/body ntfy gets unless you opted into sending session text (ntfy.sh topics are public-by-name)
+function notify(title, body, tags = 'orange_heart', pub = null) {
   execFile('notify-send', ['-a', 'Claude Deck', title, body], () => {});
   if (!config.ntfy.enabled || !config.ntfy.topic) return;
-  if (!config.ntfy.includeText) body = publicBody;
+  if (!config.ntfy.includeText && pub) ({ title, body } = pub);
   // titles are RFC 2047-encoded so emoji survive the HTTP header
   fetch(`${config.ntfy.server}/${config.ntfy.topic}`, {
     method: 'POST', body,
@@ -587,9 +587,9 @@ function watchTransitions(sessions) {
   for (const s of sessions) {
     const was = lastStatus.get(s.pid);
     if (!was && watchedOnce) logEvent('🌱', `Opened “${s.title}”`);
-    if (was === 'busy' && s.status === 'idle') { notify(`✨ ${s.title}`, s.lastReply ? s.lastReply.slice(0, 180) : 'Claude is done', 'sparkles', 'Claude is done'); logEvent('✨', `“${s.title}” finished`); }
+    if (was === 'busy' && s.status === 'idle') { notify(`✨ ${s.title}`, s.lastReply ? s.lastReply.slice(0, 180) : 'Claude is done', 'sparkles', { title: '✨ Claude is done', body: `in ${s.project}` }); logEvent('✨', `“${s.title}” finished`); }
     if (was && was !== 'waiting' && s.status === 'waiting') {
-      notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand', s.title);
+      notify('🙋 Claude needs you', s.pending ? `${s.title}: ${s.pending.text}` : s.title, 'raising_hand', { title: '🙋 Claude needs you', body: `in ${s.project}` });
       logEvent('🙋', `“${s.title}” needs you`);
     }
     lastStatus.set(s.pid, s.status);

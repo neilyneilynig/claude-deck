@@ -749,7 +749,7 @@ function openSettings() {
     <div class="hint">Only used when your real plan limits can't be read. What counts as 100% of the ring. Tune it until the ring fills up about when you actually hit your limit.</div>
     <label>Push to phone (ntfy) <button class="toggle${n.enabled ? ' on' : ''}" id="ntfyT" aria-label="Toggle push"></button></label>
     <div class="hint">${n.enabled ? `Install the free <b>ntfy</b> app and subscribe to <a href="${esc(ntfyLink)}" target="_blank">${esc(ntfyLink)}</a>, or open that link. You'll get pinged when a Claude finishes or needs you. The topic name is the password, so keep it private.` : 'Sends “Claude is done / needs you” pings through ntfy.sh, so they arrive even when this page is closed.'}</div>
-    ${n.enabled ? `<label>Include Claude's reply in pushes <button class="toggle${n.includeText ? ' on' : ''}" id="ntfyTextT" aria-label="Include reply text"></button></label>
+    ${n.enabled ? `<label>Include session titles + replies in pushes <button class="toggle${n.includeText ? ' on' : ''}" id="ntfyTextT" aria-label="Include reply text"></button></label>
     <div class="hint">Off by default: replies can contain code or secrets, and anyone who knows your topic name can read it on ntfy.sh. The laptop's own notifications always show the text.</div>` : ''}
     <div><h2 style="margin-bottom:8px">Your pet</h2>
       <label>Name <input class="petname" id="petNameIn" maxlength="20" value="${esc((cfg.pet || {}).name || 'Sparky')}"></label>
