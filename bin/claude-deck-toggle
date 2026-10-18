@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Toggle the Claude Deck app window (bind it to a key, e.g. SUPER SHIFT + K):
+#   not open        -> start the server if needed and open it as a web app
+#   open, focused   -> tuck it away on a hidden workspace
+#   open, elsewhere -> bring it to the current workspace and focus it
+DIR="$(dirname "$(readlink -f "$0")")/.."
+cd "$DIR" || exit 1
+
+if ! pgrep -f '^node server.js' >/dev/null; then
+  "$DIR/bin/claude-deck" --no-open >/dev/null
+  sleep 1.5
+fi
+
+port=$(python3 -c "import json;print(json.load(open('config.json')).get('port',4747))")
+token=$(python3 -c "import json;print(json.load(open('config.json'))['token'])")
+
+win=$(hyprctl clients -j | python3 -c "
+import json,sys
+for c in json.load(sys.stdin):
+    if c['title'].startswith('Claude Deck') and c['class'].lower().startswith(('chrom','brave','google-chrome')):
+        print(c['address'], c['workspace']['name']); break")
+
+if [ -z "$win" ]; then
+  exec omarchy-launch-webapp "http://localhost:$port/?t=$token"
+fi
+
+addr=${win%% *}
+active=$(hyprctl activewindow -j | python3 -c "import json,sys;print(json.load(sys.stdin).get('address',''))")
+if [ "$addr" = "$active" ]; then
+  hyprctl dispatch movetoworkspacesilent "special:claudedeck,address:$addr" >/dev/null
+else
+  ws=$(hyprctl activeworkspace -j | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+  hyprctl dispatch movetoworkspacesilent "$ws,address:$addr" >/dev/null
+  hyprctl dispatch focuswindow "address:$addr" >/dev/null
+fi

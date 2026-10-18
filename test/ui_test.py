@@ -27,12 +27,18 @@ def watch(page, tag):
         def fake(route):
             body = json.loads(route.request.post_data or '{}')
             actions.append(body)
-            extra = {'diff': {'diff': SAMPLE_DIFF}, 'clip-get': {'clip': 'https://example.com'},
+            extra = {'chat-start': {'chat': {'id': 'abc'}}, 'diff': {'diff': SAMPLE_DIFF}, 'clip-get': {'clip': 'https://example.com'},
                      'screen': {'image': 'data:image/gif;base64,R0lGODlhAQABAAAAACw='},
                      'search': {'results': [{'sessionId': '00000000-0000-0000-0000-000000000000', 'title': 'Found <i>it</i>', 'project': 'demo',
                                              'lastAt': 0, 'snippets': [{'who': 'you', 'text': 'the axolotl <b>bug</b>'}]}]}}.get(body.get('type'), {})
             route.fulfill(json={'ok': True, 'msg': 'test ok', **extra})
         page.route('**/api/action', fake)
+        CHAT = {'rev': 1, 'chat': {'id': 'abc', 'title': 'Test chat', 'project': 'demo', 'status': 'busy', 'cost': 0.01, 'mode': 'safe', 'sessionId': None, 'last': ''},
+                'items': [{'kind': 'you', 'text': 'hi <img src=x onerror=alert(1)>'},
+                          {'kind': 'tool', 'icon': '⌨️', 'text': 'Run tests', 'done': False},
+                          {'kind': 'claude', 'text': 'Here is **bold** and `code`\n```js\nconst x = "<script>";\n```', 'streaming': True},
+                          {'kind': 'done', 'cost': 0.01, 'secs': 3}]}
+        page.route('**/api/chat?*', lambda r: r.fulfill(json=CHAT))
 
 def check(cond, msg):
     if not cond: problems.append(msg)
@@ -68,6 +74,8 @@ def run(browser, tag, w, h):
         check('open' in (c.get_attribute('class') or ''), f'[{tag}] card {i} did not open')
         for k in c.locator('.keys .key').all():
             k.click(); page.wait_for_timeout(250)
+            if page.locator('#chatview.show').count():
+                page.click('#chBack'); page.wait_for_timeout(400)
             if page.locator('#sheet.show').count():
                 page.click('#sheetbg', position={'x': 10, 'y': 10}); page.wait_for_timeout(350)
         if c.locator('.macros button').count():
@@ -126,6 +134,30 @@ def run(browser, tag, w, h):
     page.click('#gStart'); page.mouse.move(100, 500); page.wait_for_timeout(1500)
     check(page.locator('#gOver').is_hidden(), f'[{tag}] game did not start')
     page.click('#sheetbg', position={'x': 10, 'y': 10}); page.wait_for_timeout(300)
+    # browser chat: new chat sheet -> chat screen, markdown, escaping, send with Enter, Esc closes
+    page.click('#newChatBtn'); page.wait_for_timeout(400)
+    page.fill('#ncText', 'build me a thing'); page.click('#ncMode button[data-v="full"]'); page.click('#ncModel button[data-v="haiku"]')
+    page.locator('#ncProj [data-chatpath]').first.click(); page.wait_for_timeout(900)
+    st = next((a for a in actions if a.get('type') == 'chat-start'), {})
+    check(st.get('mode') == 'full' and st.get('model') == 'haiku' and st.get('prompt') == 'build me a thing', f'[{tag}] chat-start args wrong: {st}')
+    check(page.locator('#chatview.show').count() == 1, f'[{tag}] chat screen did not open')
+    check(page.locator('#chMsgs .msg.claude b').count() == 1 and page.locator('#chMsgs .msg.claude pre').count() == 1, f'[{tag}] markdown not rendered')
+    check(page.locator('#chMsgs img, #chMsgs script').count() == 0, f'[{tag}] chat not escaped!')
+    check(page.locator('#chMsgs .streaming').count() == 1, f'[{tag}] streaming cursor missing')
+    check(page.locator('#chStop').is_visible(), f'[{tag}] stop button hidden while busy')
+    page.fill('#chInput', 'next step please'); page.press('#chInput', 'Enter'); page.wait_for_timeout(400)
+    check(any(a.get('type') == 'chat-send' and a.get('text') == 'next step please' for a in actions), f'[{tag}] chat-send not fired')
+    page.click('#chStop'); page.wait_for_timeout(200)
+    check(any(a.get('type') == 'chat-stop' for a in actions), f'[{tag}] chat-stop not fired')
+    page.keyboard.press('Escape'); page.wait_for_timeout(500)
+    check(page.locator('#chatview.show').count() == 0, f'[{tag}] Esc did not close chat')
+    # terminal session chat screen from a card key
+    page.keyboard.press('1'); page.wait_for_timeout(300); page.keyboard.press('o'); page.wait_for_timeout(1800)
+    check(page.locator('#chatview.show #chMsgs .msg, #chatview.show #chMsgs .toolrow').count() > 0, f'[{tag}] terminal chat shows no messages')
+    page.fill('#chInput', 'hello terminal'); page.click('#chSend'); page.wait_for_timeout(400)
+    check(any(a.get('type') == 'send' and a.get('text') == 'hello terminal' for a in actions), f'[{tag}] terminal chat send not fired')
+    page.click('#chBack'); page.wait_for_timeout(400)
+
     # keyboard shortcuts
     page.keyboard.press('1'); page.wait_for_timeout(300)
     check(page.locator('.sess.current').count() == 1, f'[{tag}] shortcut 1 did not select a session')

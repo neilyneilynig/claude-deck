@@ -311,7 +311,7 @@ h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; p
 .dcode .a { background: rgba(93,187,122,.16); } .dcode .d { background: rgba(224,93,93,.16); } .dcode .h { color: #7c9cff; font-weight: 700; }
 
 /* ---------- recent ---------- */
-.recent { display: grid; gap: 8px; margin-top: 12px; }
+.recent { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 12px; }
 .rec { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 10px 12px; }
 .rec .meta { flex: 1; min-width: 0; }
 .rec .t { font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -370,7 +370,7 @@ h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; p
 .searchbox { display: flex; gap: 8px; margin-top: 12px; }
 .searchbox input { flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 11px 14px; border-radius: 16px; border: 2px solid var(--line); background: var(--card); color: var(--ink); user-select: text; -webkit-user-select: text; }
 .searchbox button { background: var(--clay); color: #fff; border-radius: 16px; padding: 0 16px; font-weight: 900; }
-.results { display: grid; gap: 8px; margin-top: 8px; }
+.results { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 8px; }
 .result { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 10px 12px; }
 .result .top { display: flex; gap: 8px; align-items: center; }
 .result .t { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -393,6 +393,49 @@ h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; p
 .sess.current { outline: 3px solid var(--clay); outline-offset: 2px; }
 .key.armed { background: var(--red); }
 
+/* ---------- chat screen ---------- */
+.chatview { position: fixed; inset: 0; z-index: 35; background: var(--bg); display: flex; flex-direction: column; transform: translateY(100%); transition: transform .32s cubic-bezier(.3,1.1,.5,1); }
+.chatview.show { transform: none; }
+.chathead { display: flex; align-items: center; gap: 10px; padding: max(12px, env(safe-area-inset-top)) 14px 10px; border-bottom: 1px solid var(--line); background: var(--card); }
+.chathead .mascot { width: 40px; height: 40px; flex: none; }
+.chathead .meta { flex: 1; min-width: 0; }
+.chathead .t { font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chathead .s { font-size: 11px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.chathead button { background: var(--bg2); border-radius: 12px; padding: 8px 11px; font-weight: 900; font-size: 13px; flex: none; }
+.chathead button.stop { background: var(--red); color: #fff; }
+.msgs { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; max-width: 860px; width: 100%; margin: 0 auto; }
+.msg { max-width: 92%; padding: 10px 14px; border-radius: 18px; line-height: 1.45; font-weight: 600; font-size: 15px; word-break: break-word; user-select: text; -webkit-user-select: text; }
+.msg.you { align-self: flex-end; background: var(--clay); color: #fff; border-bottom-right-radius: 6px; white-space: pre-wrap; }
+.msg.claude { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+.msg.claude pre { background: var(--bg2); border-radius: 10px; padding: 10px; overflow-x: auto; font-size: 12px; margin: 8px 0; white-space: pre; }
+.msg.claude code { font-family: ui-monospace, monospace; font-size: .88em; background: var(--bg2); border-radius: 5px; padding: 1px 5px; }
+.msg.claude pre code { background: none; padding: 0; font-size: 12px; }
+.msg.claude.streaming::after { content: "▍"; color: var(--clay); animation: blinkc 1s steps(2) infinite; }
+@keyframes blinkc { 50% { opacity: 0; } }
+.toolrow { align-self: flex-start; font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; max-width: 92%; padding: 0 6px; }
+.toolrow span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toolrow .spin { display: inline-block; animation: spin 1s linear infinite; }
+.toolrow.err { color: var(--red); }
+.donerow { align-self: center; font-size: 11px; color: var(--muted); background: var(--bg2); border-radius: 99px; padding: 3px 10px; }
+.thinking { align-self: flex-start; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; padding: 0 6px; }
+.thinking .mascot { width: 34px; height: 34px; }
+.composer { border-top: 1px solid var(--line); background: var(--card); padding: 10px 12px max(12px, env(safe-area-inset-bottom)); }
+.composer .inner { max-width: 860px; margin: 0 auto; }
+.composer .macros { margin: 0 0 8px; }
+.composer form { display: flex; gap: 8px; align-items: flex-end; }
+.composer textarea { flex: 1; min-width: 0; resize: none; font: inherit; font-size: 16px; font-weight: 600; max-height: 160px; padding: 11px 14px; border-radius: 18px; border: 2px solid var(--line); background: var(--bg); color: var(--ink); outline: none; user-select: text; -webkit-user-select: text; }
+.composer textarea:focus { border-color: var(--clay); }
+.composer button.send { background: var(--clay); color: #fff; border-radius: 16px; width: 48px; height: 48px; font-size: 20px; flex: none; }
+.composer button.send:disabled { opacity: .4; }
+.chatview .pending { margin: 0 0 8px; }
+.webchats { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 8px; }
+.newchat { width: 100%; background: var(--clay); color: #fff; border-radius: 18px; padding: 12px; font-weight: 900; font-size: 15px; margin-top: 10px; }
+.newchat:active { transform: scale(.98); }
+.optrow { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.optrow button { background: var(--bg2); border-radius: 99px; padding: 7px 12px; font-weight: 800; font-size: 13px; border: 2px solid transparent; }
+.optrow button.on { border-color: var(--clay); background: var(--peach); color: var(--clay); }
+.optlbl { font-size: 11px; font-weight: 900; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin: 4px 0 6px; }
+
 .confetti { position: fixed; top: -20px; font-size: 18px; pointer-events: none; z-index: 40; animation: fall var(--t, 2.4s) linear forwards; }
 @keyframes fall { to { transform: translate(var(--dx, 0), 110vh) rotate(var(--r, 360deg)); } }
 
@@ -404,6 +447,7 @@ h2 .count { background: var(--peach); color: var(--clay); border-radius: 99px; p
 <div class="toast" id="toast"></div>
 <div class="sheet-bg" id="sheetbg"></div>
 <div class="sheet" id="sheet"></div>
+<div class="chatview" id="chatview" aria-modal="true" role="dialog"></div>
 <script>
 'use strict';
 const $ = (s, el = document) => el.querySelector(s);
@@ -626,6 +670,11 @@ $('#root').innerHTML = `
   </div>
   <div class="col" style="position:static">
     <section>
+      <h2 style="margin-left:6px">Browser chats <span class="count" id="chatCount">0</span></h2>
+      <div class="webchats" id="webchats"></div>
+      <button class="newchat" id="newChatBtn">💬 New chat with Claude</button>
+    </section>
+    <section>
       <h2 style="margin-left:6px">Sessions <span class="count" id="count">0</span></h2>
       <div class="sessions" id="sessions"></div>
     </section>
@@ -704,6 +753,7 @@ function say(text, hold = 0) {
 // ---------- deck ----------
 let projects = [], cfg = { macros: [], ntfy: {} };
 const BUILTIN_KEYS = [
+  { id: 'chat', label: 'New chat', emoji: '💬', type: 'chat' },
   { id: 'timer', label: 'Focus 25', emoji: '🍅', type: 'timer' },
   { id: 'screen', label: 'Live screen', emoji: '📺', type: 'screen' },
   { id: 'game', label: 'Token Catcher', emoji: '🎮', type: 'game' },
@@ -723,6 +773,7 @@ $('#deck').addEventListener('click', e => {
   pressFx(k, e);
   if (k.dataset.type === 'new-session') return openProjects();
   if (k.dataset.type === 'timer') return openTimer();
+  if (k.dataset.type === 'chat') return openNewChat();
   if (k.dataset.type === 'screen') return openScreen();
   if (k.dataset.type === 'game') return openGame();
   act({ type: 'deck', id: k.dataset.id });
@@ -829,7 +880,7 @@ const SESSION_KEYS = [
   { k: 'git', e: '🌿', l: 'Git', a: pid => ({ type: 'git', pid }) },
   { k: 'diff', e: '🔀', l: 'Diff', a: pid => ({ type: 'diff', pid }) },
   { k: 'close', e: '👋', l: 'Close', a: pid => ({ type: 'send', pid, text: '/exit' }), confirm: true },
-  { k: 'enter', e: '⏎', l: 'Enter', a: pid => ({ type: 'key', pid, key: 'enter' }) },
+  { k: 'chat', e: '💬', l: 'Chat', open: true },
 ];
 const open = new Set();
 const prev = new Map();
@@ -886,6 +937,7 @@ function sessionCard(s) {
     const k = e.target.closest('.key'); if (!k) return;
     pressFx(k, e);
     const def = SESSION_KEYS.find(x => x.k === k.dataset.k);
+    if (def.open) return openChat({ kind: 'term', pid: +el.dataset.pid });
     if (def.confirm && !k.classList.contains('armed')) {
       k.classList.add('armed'); $('.l', k).textContent = 'Sure?';
       setTimeout(() => { k.classList.remove('armed'); $('.l', k).textContent = def.l; }, 2500);
@@ -1278,6 +1330,164 @@ function openGame() {
   ctx.clearRect(0, 0, W, H); drawPet(W / 2, H - 40, 0);
 }
 
+// ---------- chat screen (terminal sessions + headless browser chats) ----------
+// tiny, safe markdown: everything is escaped first, then fences, inline code, bold, headings
+function md(t) {
+  return String(t).split(/```/).map((part, i) => {
+    if (i % 2) return `<pre><code>${esc(part.replace(/^[\w+-]*\n/, ''))}</code></pre>`;
+    return esc(part).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
+      .replace(/^#{1,4} (.+)$/gm, '<b>$1</b>').replace(/\n/g, '<br>');
+  }).join('');
+}
+let chatState = null; // { kind: 'term'|'web', pid?, id?, rev, timer, sid? }
+function closeChat() {
+  if (!chatState) return;
+  clearTimeout(chatState.timer); chatState = null;
+  $('#chatview').classList.remove('show');
+}
+function openNewChat() {
+  const mode = { v: 'safe' }, model = { v: '' };
+  openSheet(`<h3>💬 New chat with Claude</h3>
+    <textarea class="tasktext" id="ncText" placeholder="What do you want to talk about or build?"></textarea>
+    <div class="optlbl">Permissions</div><div class="optrow" id="ncMode"><button data-v="safe" class="on">🛡️ Edits only</button><button data-v="full">⚡ Full access</button></div>
+    <div class="optlbl">Model</div><div class="optrow" id="ncModel"><button data-v="" class="on">Default</button><button data-v="opus">Opus</button><button data-v="sonnet">Sonnet</button><button data-v="haiku">Haiku</button></div>
+    <div class="hint" id="ncHint" style="margin:-4px 0 10px">Edits only: Claude can read and edit files, but commands that need permission are declined.</div>
+    <div class="optlbl">Where</div><div class="proj" id="ncProj">${projects.map(p => `<button data-chatpath="${esc(p.path)}">📁 ${esc(p.name)}</button>`).join('')}</div>`);
+  const pick = (row, st) => $(row).addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]'); if (!b) return;
+    st.v = b.dataset.v; $(row).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    if (row === '#ncMode') $('#ncHint').textContent = st.v === 'full' ? '⚡ Full access: Claude can run any command without asking, like --dangerously-skip-permissions.' : 'Edits only: Claude can read and edit files, but commands that need permission are declined.';
+  });
+  pick('#ncMode', mode); pick('#ncModel', model);
+  $('#ncProj').addEventListener('click', async e => {
+    const b = e.target.closest('[data-chatpath]'); if (!b) return;
+    const prompt = $('#ncText').value.trim();
+    if (!prompt) { $('#ncText').focus(); return toast('say something first 💬', { err: true }); }
+    const j = await act({ type: 'chat-start', cwd: b.dataset.chatpath, prompt, mode: mode.v, model: model.v });
+    if (j) { closeSheet(); openChat({ kind: 'web', id: j.chat.id }); }
+  });
+  setTimeout(() => $('#ncText')?.focus(), 350);
+}
+function openChat(target) {
+  closeSheet(); closeChat();
+  chatState = { ...target, rev: null, timer: null, stuckBottom: true };
+  const cv = $('#chatview');
+  cv.innerHTML = `<div class="chathead"><button id="chBack" aria-label="Back">←</button>${mascot()}
+      <div class="meta"><div class="t" id="chTitle">…</div><div class="s" id="chSub"></div></div>
+      <button id="chStop" class="stop" hidden>✋ Stop</button><button id="chMore" aria-label="More">⋯</button></div>
+    <div class="msgs" id="chMsgs"><div class="thinking">${mascot('busy')} loading…</div></div>
+    <div class="composer"><div class="inner"><div class="pending" hidden></div><div class="macros" id="chMacros"></div>
+      <form id="chForm"><textarea id="chInput" rows="1" placeholder="Message Claude…" enterkeyhint="send"></textarea><button class="send" id="chSend" aria-label="Send">➤</button></form></div></div>`;
+  cv.classList.add('show');
+  $('#chMacros').innerHTML = (cfg.macros || []).map((m, i) => `<button data-i="${i}">${esc(m.emoji)} ${esc(m.label)}</button>`).join('');
+  const msgs = $('#chMsgs');
+  msgs.addEventListener('scroll', () => { if (chatState) chatState.stuckBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 60; });
+  $('#chBack').addEventListener('click', closeChat);
+  const input = $('#chInput');
+  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(160, input.scrollHeight) + 'px'; });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chForm').requestSubmit(); } });
+  const send = async text => {
+    if (!text.trim() || !chatState) return false;
+    const j = chatState.kind === 'web' ? await act({ type: 'chat-send', id: chatState.id, text }) : await act({ type: 'send', pid: chatState.pid, text });
+    if (j && chatState) { chatState.stuckBottom = true; chatState.rev = null; clearTimeout(chatState.timer); pollChat(); }
+    return !!j;
+  };
+  $('#chForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const text = input.value; if (!text.trim()) return;
+    $('#chSend').disabled = true;
+    if (await send(text)) { input.value = ''; input.style.height = 'auto'; }
+    $('#chSend').disabled = false; input.focus();
+  });
+  $('#chMacros').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) send(cfg.macros[+b.dataset.i].text); });
+  $('#chStop').addEventListener('click', () => chatState && (chatState.kind === 'web' ? act({ type: 'chat-stop', id: chatState.id }) : act({ type: 'key', pid: chatState.pid, key: 'escape' })));
+  $('#chMore').addEventListener('click', () => {
+    if (!chatState) return;
+    const t = chatState;
+    openSheet(t.kind === 'web'
+      ? `<h3>💬 Chat options</h3><div class="sheetbtns"><button id="chOpenTerm">🖥️ Continue in a terminal</button><button class="ghost" id="chClose">👋 Close chat</button></div>
+         <div class="hint" style="margin-top:10px">Closing stops Claude. The conversation stays in your history, so you can find it with search and resume it.</div>`
+      : `<h3>🖥️ Terminal session</h3><div class="sheetbtns"><button id="chFocus">👀 Focus on laptop</button><button class="ghost" id="chPeek">📸 Peek</button></div>
+         <div class="hint" style="margin-top:10px">Messages to terminal sessions are pasted into the window and focus pops back to you. Messages wait while you're typing on the laptop.</div>`);
+    $('#chClose')?.addEventListener('click', async () => { await act({ type: 'chat-close', id: t.id }); closeSheet(); closeChat(); });
+    $('#chOpenTerm')?.addEventListener('click', async () => {
+      const c = (lastState?.chats || []).find(x => x.id === t.id);
+      if (!c || !c.sessionId) return toast('no session yet', { err: true });
+      if (c.status === 'busy') return toast('wait for Claude to finish first', { err: true });
+      await act({ type: 'chat-close', id: t.id });
+      await act({ type: 'resume', sessionId: c.sessionId }); closeSheet(); closeChat();
+    });
+    $('#chFocus')?.addEventListener('click', () => { act({ type: 'focus', pid: t.pid }); closeSheet(); });
+    $('#chPeek')?.addEventListener('click', () => act({ type: 'peek', pid: t.pid }).then(showPeek));
+  });
+  $('.pending', cv).addEventListener('click', e => {
+    if (!chatState) return;
+    if (e.target.closest('[data-peek]')) return act({ type: 'peek', pid: chatState.pid }).then(showPeek);
+    const b = e.target.closest('button[data-key]'); if (b) act({ type: 'key', pid: chatState.pid, key: b.dataset.key });
+  });
+  pollChat();
+  if (matchMedia('(pointer: fine)').matches) setTimeout(() => input.focus(), 350);
+}
+function renderChatItems(items, busy) {
+  const msgs = $('#chMsgs'); if (!msgs) return;
+  let html = items.map(i => {
+    if (i.kind === 'you') return `<div class="msg you">${esc(i.text)}</div>`;
+    if (i.kind === 'claude') return `<div class="msg claude${i.streaming ? ' streaming' : ''}">${md(i.text)}</div>`;
+    if (i.kind === 'tool') return `<div class="toolrow${i.error ? ' err' : ''}"><span class="${i.done === false ? 'spin' : ''}">${i.done === false ? '⏳' : i.error ? '⚠️' : esc(i.icon)}</span><span>${esc(i.text)}${i.result ? ` — ${esc(i.result)}` : ''}</span></div>`;
+    if (i.kind === 'err') return `<div class="toolrow err"><span>⚠️</span><span>${esc(i.text)}</span></div>`;
+    if (i.kind === 'done') return `<div class="donerow">${i.error ? '⚠️ ' + esc(i.error) : `✨ done${i.secs ? ` in ${i.secs}s` : ''}${i.cost ? ` · ${fmtUsd(i.cost)}` : ''}`}</div>`;
+    return '';
+  }).join('') || '<div class="hint" style="text-align:center;margin-top:30px">No messages yet</div>';
+  if (busy && !items.some(i => i.streaming)) html += `<div class="thinking">${mascot('busy')} Claude is cooking…</div>`;
+  if (msgs.dataset.html !== html) { msgs.innerHTML = html; msgs.dataset.html = html; if (chatState?.stuckBottom) msgs.scrollTop = msgs.scrollHeight; }
+}
+async function pollChat() {
+  const t = chatState; if (!t) return;
+  try {
+    if (t.kind === 'web') {
+      const r = await fetch(`api/chat?id=${encodeURIComponent(t.id)}&rev=${t.rev ?? ''}`, { headers: { 'x-deck-token': token } });
+      const j = await r.json();
+      if (chatState !== t) return;
+      if (r.status === 404) { toast('that chat is gone', { err: true }); return closeChat(); }
+      if (!j.same) {
+        t.rev = j.rev;
+        const c = j.chat;
+        $('#chTitle').textContent = c.title;
+        $('#chSub').innerHTML = `<span class="pill ${c.status === 'busy' ? 'busy' : 'idle'}">${c.status === 'busy' ? 'cooking' : c.status === 'exited' ? 'asleep' : 'your turn'}</span><span>💬 browser chat · 📁 ${esc(c.project)} · ${c.mode === 'full' ? '⚡ full access' : '🛡️ edits only'} · ${fmtUsd(c.cost)}</span>`;
+        $('#chStop').hidden = c.status !== 'busy';
+        setMood($('.chathead .mascot'), c.status === 'busy' ? 'busy' : null);
+        renderChatItems(j.items, c.status === 'busy');
+      }
+      t.timer = setTimeout(pollChat, 500);
+    } else {
+      const s = (lastState?.sessions || []).find(x => x.pid === t.pid);
+      if (!s) { toast('that session closed 👋'); return closeChat(); }
+      const r = await fetch(`api/feed?sid=${encodeURIComponent(s.sessionId)}`, { headers: { 'x-deck-token': token } });
+      const { items = [] } = await r.json();
+      if (chatState !== t) return;
+      const st = statusOf(s);
+      $('#chTitle').textContent = s.title;
+      $('#chSub').innerHTML = `<span class="pill ${st}">${pillText[st]}</span><span>🖥️ terminal · 📁 ${esc(s.project)} · ${fmtUsd(s.cost || 0)}</span>`;
+      $('#chStop').hidden = st !== 'busy';
+      setMood($('.chathead .mascot'), st === 'busy' ? 'busy' : st === 'waiting' ? 'waiting' : null);
+      const box = $('#chatview .pending');
+      if (st === 'waiting') renderPending({ querySelector: () => box }, s); else { box.hidden = true; box.dataset.id = ''; }
+      renderChatItems(items.map(x => x.kind === 'tool' ? { ...x, done: true } : x), st === 'busy');
+      t.timer = setTimeout(pollChat, 1500);
+    }
+  } catch { if (chatState === t) t.timer = setTimeout(pollChat, 2000); }
+}
+
+// ---------- browser chats list ----------
+function renderWebChats(list) {
+  $('#chatCount').textContent = list.length;
+  const html = list.map(c => `<div class="rec" data-chat="${esc(c.id)}" style="cursor:pointer"><div class="meta"><div class="t">💬 ${esc(c.title)}</div>
+    <div class="s">📁 ${esc(c.project)} · ${c.status === 'busy' ? '🍳 cooking' : c.status === 'exited' ? '😴 asleep' : '✨ your turn'} · ${fmtUsd(c.cost)}</div></div><button>Open</button></div>`).join('');
+  if ($('#webchats').innerHTML !== html) $('#webchats').innerHTML = html;
+}
+$('#webchats').addEventListener('click', e => { const r = e.target.closest('[data-chat]'); if (r) openChat({ kind: 'web', id: r.dataset.chat }); });
+$('#newChatBtn').addEventListener('click', openNewChat);
+
 // ---------- keyboard shortcuts (iPad with a keyboard, or the laptop) ----------
 let currentPid = null;
 function setCurrent(el) {
@@ -1287,12 +1497,13 @@ function setCurrent(el) {
 }
 const SHORTCUTS = [
   ['1–9', 'pick a session'], ['f', 'focus it on the laptop'], ['p', 'peek at its screen'], ['d', 'diff'], ['g', 'git status'],
-  ['c', 'say “continue”'], ['/', 'type to it'], ['Esc', 'close a sheet'], ['n', 'start a Claude'], ['s', 'live screen'],
+  ['c', 'say “continue”'], ['o', 'open its chat screen'], ['b', 'new browser chat'], ['/', 'type to it'], ['Esc', 'close a sheet'], ['n', 'start a Claude'], ['s', 'live screen'],
   ['k', 'search past chats'], ['t', 'focus timer'], ['?', 'this help'],
 ];
 document.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.key === 'Escape') return closeSheet();
+  if (e.key === 'Escape') { if (chatState) return closeChat(); return closeSheet(); }
+  if (chatState) return; // the chat screen has its own keys
   if (e.target.closest('input, textarea')) return;
   const el = currentPid != null ? cards.get(currentPid) : null;
   const pidAct = type => el ? act({ type, pid: currentPid }).then(j => { showPeek(j); showDiff(j); }) : toast('pick a session first (1–9)');
@@ -1301,6 +1512,7 @@ document.addEventListener('keydown', e => {
     f: () => pidAct('focus'), p: () => pidAct('peek'), d: () => pidAct('diff'), g: () => pidAct('git'),
     c: () => el ? act({ type: 'send', pid: currentPid, text: 'continue' }) : pidAct(),
     '/': () => el ? $('.say input', el).focus() : pidAct(),
+    o: () => el ? openChat({ kind: 'term', pid: currentPid }) : pidAct(), b: () => openNewChat(),
     n: openProjects, s: openScreen, t: openTimer, k: () => $('#searchQ').focus(),
     '?': () => openSheet(`<h3>⌨️ Shortcuts</h3><div class="kbd">${SHORTCUTS.map(([k, d]) => `<kbd>${esc(k)}</kbd><span>${esc(d)}</span>`).join('')}</div>`),
   };
@@ -1353,7 +1565,7 @@ function connect() {
     $('#conn').classList.add('on'); $('#host').textContent = st.host;
     renderUsage(st.usage, st.plan); renderSessions(st.sessions); renderHero(st);
     renderVitals(st.vitals); renderServers(st.servers || []); renderTimer(st.timer);
-    renderRecent(st.recent || []); renderMedia(st.media); renderLog(st.events); renderToday(st.usage);
+    renderRecent(st.recent || []); renderMedia(st.media); renderLog(st.events); renderToday(st.usage); renderWebChats(st.chats || []);
     lastState = st;
   };
   es.onerror = () => { $('#conn').classList.remove('on'); $('#host').textContent = 'reconnecting…'; };

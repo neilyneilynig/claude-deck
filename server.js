@@ -317,6 +317,101 @@ async function searchSessions(q) {
   return results;
 }
 
+// ---------- browser chats: headless Claude Code streaming into the page ----------
+// One long-lived `claude -p --input-format stream-json` process per chat; messages go in on stdin, events come out
+// on stdout. No terminal window, so nothing steals focus. If the process ends, the next message revives it with --resume.
+const chats = new Map(); // id -> chat
+const CHAT_MODES = { safe: 'acceptEdits', full: 'bypassPermissions' };
+function chatSummary(c) {
+  const lastClaude = [...c.items].reverse().find(i => i.kind === 'claude');
+  return { id: c.id, title: c.title, project: c.project, status: c.status, cost: c.cost, mode: c.mode, createdAt: c.createdAt,
+    last: lastClaude ? lastClaude.text.slice(0, 160) : '', sessionId: c.sessionId };
+}
+function chatPush(c, item) { c.items.push(item); if (c.items.length > 400) c.items.splice(0, c.items.length - 400); c.rev++; }
+function spawnChat(c) {
+  const args = ['-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
+    '--permission-mode', CHAT_MODES[c.mode]];
+  if (c.model) args.push('--model', c.model);
+  if (c.sessionId) args.push('--resume', c.sessionId);
+  const proc = spawn(config.claudeCommand, args, { cwd: c.cwd, stdio: ['pipe', 'pipe', 'pipe'] });
+  c.proc = proc;
+  let buf = '', streaming = null;
+  proc.stdout.on('data', chunk => {
+    buf += chunk;
+    const lines = buf.split('\n'); buf = lines.pop();
+    for (const line of lines) {
+      let o; try { o = JSON.parse(line); } catch { continue; }
+      if (o.type === 'system' && o.subtype === 'init') { c.sessionId = o.session_id; continue; }
+      if (o.parent_tool_use_id) continue; // subagent chatter
+      if (o.type === 'stream_event') {
+        const ev = o.event || {};
+        if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'text') {
+          streaming = { kind: 'claude', text: '', streaming: true, ts: Date.now() }; chatPush(c, streaming);
+        } else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta' && streaming) {
+          streaming.text += ev.delta.text; c.rev++;
+        }
+        continue;
+      }
+      if (o.type === 'assistant' && o.message) {
+        for (const b of o.message.content || []) {
+          if (b.type === 'text' && b.text.trim()) {
+            if (streaming) { streaming.text = b.text; streaming.streaming = false; streaming = null; c.rev++; }
+            else chatPush(c, { kind: 'claude', text: b.text, ts: Date.now() });
+          } else if (b.type === 'tool_use') {
+            chatPush(c, { kind: 'tool', id: b.id, ...describeTool(b), detail: b.name === 'Bash' ? String(b.input.command || '').slice(0, 300) : '', done: false, ts: Date.now() });
+          }
+        }
+        continue;
+      }
+      if (o.type === 'user' && o.message && Array.isArray(o.message.content)) {
+        for (const r of o.message.content) {
+          if (r.type !== 'tool_result') continue;
+          const t = c.items.find(i => i.kind === 'tool' && i.id === r.tool_use_id);
+          if (t) { t.done = true; t.error = !!r.is_error; if (r.is_error) t.result = String(typeof r.content === 'string' ? r.content : 'error').slice(0, 300); c.rev++; }
+        }
+        continue;
+      }
+      if (o.type === 'result') {
+        c.status = 'idle'; c.cost += o.total_cost_usd || 0; streaming = null;
+        chatPush(c, { kind: 'done', cost: o.total_cost_usd || 0, secs: Math.round((o.duration_ms || 0) / 1000), ts: Date.now(), error: o.is_error ? (c.stopping ? '✋ stopped' : String(o.result || o.subtype).slice(0, 300)) : '' });
+        if (!o.is_error) notify(`💬 ${c.title}`, 'Claude replied in the browser chat', 'speech_balloon', { title: '💬 Claude replied', body: `in ${c.project}` });
+        logEvent('💬', `Browser chat “${c.title}” replied`);
+      }
+    }
+  });
+  let errTail = '';
+  proc.stderr.on('data', d => { errTail = (errTail + d).slice(-600); });
+  proc.on('error', e => { chatPush(c, { kind: 'err', text: 'could not start claude: ' + e.message, ts: Date.now() }); c.status = 'exited'; });
+  proc.on('exit', code => {
+    if (c.proc === proc) c.proc = null;
+    if (c.status === 'busy') chatPush(c, { kind: 'err', text: c.stopping ? '✋ stopped' : `claude exited (${code})${errTail ? ': ' + errTail.trim().split('\n').pop() : ''}`, ts: Date.now() });
+    c.status = c.closed ? 'closed' : 'exited'; c.stopping = false; c.rev++;
+  });
+}
+function chatSend(c, text) {
+  if (!c.proc) spawnChat(c);
+  c.proc.stdin.write(JSON.stringify({ type: 'user', message: { role: 'user', content: text } }) + '\n');
+  chatPush(c, { kind: 'you', text, ts: Date.now() });
+  c.status = 'busy';
+}
+function chatStart({ cwd, prompt, mode, model }) {
+  const dir = (projects().find(p => p.path === cwd) || { path: HOME }).path;
+  const text = String(prompt || '').trim().slice(0, 20000);
+  if (!text) throw new Error('say something to start the chat');
+  if (chats.size >= 12) throw new Error('too many browser chats open, close one first');
+  const id = crypto.randomBytes(6).toString('hex');
+  const c = {
+    id, cwd: dir, project: path.basename(dir) || '~', title: text.replace(/\s+/g, ' ').slice(0, 48), mode: CHAT_MODES[mode] ? mode : 'safe',
+    model: ['haiku', 'sonnet', 'opus'].includes(model) ? model : null,
+    items: [], rev: 0, cost: 0, status: 'busy', sessionId: null, proc: null, createdAt: Date.now(),
+  };
+  chats.set(id, c);
+  chatSend(c, text);
+  logEvent('💬', `Started browser chat in ${c.project}`);
+  return c;
+}
+process.on('exit', () => { for (const c of chats.values()) try { c.proc && c.proc.kill(); } catch {} });
+
 // ---------- activity log ----------
 const events = []; // newest last
 function logEvent(icon, text) {
@@ -733,6 +828,23 @@ async function doAction(a) {
         { encoding: 'buffer', timeout: 5000, maxBuffer: 32 << 20 }, (e, out) => e ? rej(new Error('screenshot failed')) : res(out)));
       return { ok: true, msg: '', image: 'data:image/jpeg;base64,' + img.toString('base64') };
     }
+    case 'chat-start': { const c = chatStart(a); return { ok: true, msg: '💬 Chat started', chat: chatSummary(c) }; }
+    case 'chat-send': {
+      const c = chats.get(String(a.id)); if (!c) throw new Error('that chat is gone');
+      if (c.status === 'busy') throw new Error('Claude is still working, wait or press Stop');
+      const text = String(a.text || '').trim().slice(0, 20000); if (!text) throw new Error('nothing to send');
+      chatSend(c, text); return { ok: true, msg: '' };
+    }
+    case 'chat-stop': {
+      const c = chats.get(String(a.id)); if (!c) throw new Error('that chat is gone');
+      if (c.proc) { c.stopping = true; c.proc.kill('SIGINT'); setTimeout(() => c.proc && c.proc.kill('SIGKILL'), 3000); }
+      return { ok: true, msg: '✋ Stopping' };
+    }
+    case 'chat-close': {
+      const c = chats.get(String(a.id)); if (!c) return { ok: true, msg: '' };
+      c.closed = true; if (c.proc) c.proc.kill(); chats.delete(c.id);
+      return { ok: true, msg: '👋 Chat closed' };
+    }
     case 'search': return { ok: true, msg: '', results: await searchSessions(String(a.q || '')) };
     case 'diff': {
       const s = (await liveSessions()).find(x => x.pid === a.pid);
@@ -868,7 +980,7 @@ async function tick() {
     }
     if (timer && Date.now() >= timer.end) { logEvent('🍅', `${timer.label} timer done`); notify('🍅 Timer done!', `${timer.label} (${timer.minutes} min) — take a break`, 'tomato'); timer = null; }
     const liveIds = new Set(sessions.map(s => s.sessionId));
-    state = { t: Date.now(), host: os.hostname(), sessions, recent: recentSessions(liveIds), usage: usageStats(), plan, vitals: vitals(), servers, timer, media, events: events.slice(-25) };
+    state = { t: Date.now(), host: os.hostname(), chats: [...chats.values()].map(chatSummary), sessions, recent: recentSessions(liveIds), usage: usageStats(), plan, vitals: vitals(), servers, timer, media, events: events.slice(-25) };
     const data = `data: ${JSON.stringify(state)}\n\n`;
     for (const res of clients) res.write(data);
   } catch (e) { console.error('tick failed:', e); }
@@ -920,6 +1032,12 @@ async function handle(req, res) {
       return;
     }
     if (url.pathname === '/api/config') return json(res, 200, publicConfig());
+    if (url.pathname === '/api/chat') {
+      const c = chats.get(url.searchParams.get('id'));
+      if (!c) return json(res, 404, { error: 'that chat is gone' });
+      if (url.searchParams.get('rev') === String(c.rev)) return json(res, 200, { same: true });
+      return json(res, 200, { rev: c.rev, chat: chatSummary(c), items: c.items.slice(-200) });
+    }
     if (url.pathname === '/api/feed') {
       try { return json(res, 200, { items: feed(url.searchParams.get('sid')) }); }
       catch (e) { return json(res, 400, { error: e.message }); }

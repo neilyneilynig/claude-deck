@@ -26,6 +26,13 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 - per-session stats: 💸 cost, turns, edits, commands, reads, plus the files Claude touched
 - 🔀 **diff viewer**: review the session's uncommitted changes on your phone (finds the repo Claude is actually editing)
 
+**💬 Chat with Claude in the browser**
+- **Browser chats**: start a full Claude Code session right from the page, with no terminal window. Replies stream in live,
+  tool calls show as they run, and you can follow up, ✋ stop, or move it to a terminal. Pick 🛡️ edits-only or ⚡ full access, and the model.
+  Under the hood: one `claude -p --input-format stream-json` process per chat, revived with `--resume`.
+- **Chat screen for terminal sessions**: tap 💬 Chat on any card for a full-screen conversation view with a message box,
+  quick prompts, and the “needs you” answer panel.
+
 **Recent sessions**: closed sessions with ▶ **Resume**, which reopens them on the laptop with `claude --resume`
 - 🔎 **search past chats** (“where did I talk about…?”) with highlighted snippets and Resume
 - 🚀 **start a task from your phone**: type what you want, pick a project, and a new Claude opens already working on it
@@ -47,7 +54,11 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 
 **Push** (optional): “Claude is done / needs you” pings through [ntfy](https://ntfy.sh), even when the page is closed.
 
-**⌨️ Keyboard shortcuts** (iPad with a keyboard): `1`–`9` pick a session, `f` focus, `p` peek, `d` diff, `/` type, `n` new task, `s` screen, `k` search, `?` help.
+**⌨️ Keyboard shortcuts** (iPad with a keyboard): `1`–`9` pick a session, `o` open its chat, `b` new browser chat, `f` focus, `p` peek, `d` diff, `/` type, `n` new task, `s` screen, `k` search, `?` help.
+
+**🔥 Laptop hotkey**: `bin/claude-deck-toggle` opens the deck as an app window, hides it, and brings it back. Bind it in Hyprland:
+
+    bindd = SUPER SHIFT, K, Claude Deck, exec, ~/Projects/claude-deck/bin/claude-deck-toggle
 
 ## Run
     node server.js        # or: ln -s $PWD/bin/claude-deck ~/.local/bin/ && claude-deck
