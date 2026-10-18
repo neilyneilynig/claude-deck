@@ -36,6 +36,9 @@ function defaultConfig() {
     // Push notifications through ntfy.sh. Off until you switch it on from the app's settings.
     ntfy: { enabled: false, topic: '', server: 'https://ntfy.sh', includeText: false },
     pet: { name: 'Sparky', color: 'clay' },
+    // Browser chats with ⚡ full access run claude with bypassPermissions (any command, no asking).
+    // Only this file can turn that on; the web app can't.
+    allowFullAccessChats: false,
     highScore: 0,
     macros: [
       { emoji: '🧪', label: 'Run tests', text: 'run the tests and fix anything that fails' },
@@ -399,6 +402,7 @@ function chatStart({ cwd, prompt, mode, model }) {
   const text = String(prompt || '').trim().slice(0, 20000);
   if (!text) throw new Error('say something to start the chat');
   if (chats.size >= 12) throw new Error('too many browser chats open, close one first');
+  if (mode === 'full' && config.allowFullAccessChats !== true) throw new Error('⚡ full access is off: set "allowFullAccessChats": true in config.json on the laptop');
   const id = crypto.randomBytes(6).toString('hex');
   const c = {
     id, cwd: dir, project: path.basename(dir) || '~', title: text.replace(/\s+/g, ' ').slice(0, 48), mode: CHAT_MODES[mode] ? mode : 'safe',
@@ -940,7 +944,7 @@ const PET_COLORS = ['clay', 'pink', 'sky', 'mint', 'grape', 'gold', 'rainbow'];
 function publicConfig() {
   return {
     deck: config.deck.map(({ cmd, ...b }) => b), projects: projects(), macros: config.macros,
-    pet: config.pet, highScore: config.highScore || 0,
+    pet: config.pet, highScore: config.highScore || 0, allowFullAccessChats: !!config.allowFullAccessChats,
     budget: config.blockBudgetUsd, ntfy: { includeText: !!config.ntfy.includeText, enabled: config.ntfy.enabled, topic: config.ntfy.enabled ? config.ntfy.topic : '', server: config.ntfy.server },
   };
 }

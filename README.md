@@ -29,6 +29,7 @@ A cute stream deck for your Claude Code sessions. It runs on your laptop, and yo
 **💬 Chat with Claude in the browser**
 - **Browser chats**: start a full Claude Code session right from the page, with no terminal window. Replies stream in live,
   tool calls show as they run, and you can follow up, ✋ stop, or move it to a terminal. Pick 🛡️ edits-only or ⚡ full access, and the model.
+  Full access (`bypassPermissions`) stays locked until you set `"allowFullAccessChats": true` in `config.json` on the laptop.
   Under the hood: one `claude -p --input-format stream-json` process per chat, revived with `--resume`.
 - **Chat screen for terminal sessions**: tap 💬 Chat on any card for a full-screen conversation view with a message box,
   quick prompts, and the “needs you” answer panel.

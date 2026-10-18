@@ -1349,12 +1349,12 @@ function openNewChat() {
   const mode = { v: 'safe' }, model = { v: '' };
   openSheet(`<h3>💬 New chat with Claude</h3>
     <textarea class="tasktext" id="ncText" placeholder="What do you want to talk about or build?"></textarea>
-    <div class="optlbl">Permissions</div><div class="optrow" id="ncMode"><button data-v="safe" class="on">🛡️ Edits only</button><button data-v="full">⚡ Full access</button></div>
+    <div class="optlbl">Permissions</div><div class="optrow" id="ncMode"><button data-v="safe" class="on">🛡️ Edits only</button><button data-v="full"${cfg.allowFullAccessChats ? '' : ' disabled title="Turn on allowFullAccessChats in config.json on the laptop"'}>⚡ Full access${cfg.allowFullAccessChats ? '' : ' 🔒'}</button></div>
     <div class="optlbl">Model</div><div class="optrow" id="ncModel"><button data-v="" class="on">Default</button><button data-v="opus">Opus</button><button data-v="sonnet">Sonnet</button><button data-v="haiku">Haiku</button></div>
     <div class="hint" id="ncHint" style="margin:-4px 0 10px">Edits only: Claude can read and edit files, but commands that need permission are declined.</div>
     <div class="optlbl">Where</div><div class="proj" id="ncProj">${projects.map(p => `<button data-chatpath="${esc(p.path)}">📁 ${esc(p.name)}</button>`).join('')}</div>`);
   const pick = (row, st) => $(row).addEventListener('click', e => {
-    const b = e.target.closest('button[data-v]'); if (!b) return;
+    const b = e.target.closest('button[data-v]'); if (!b || b.disabled) return;
     st.v = b.dataset.v; $(row).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     if (row === '#ncMode') $('#ncHint').textContent = st.v === 'full' ? '⚡ Full access: Claude can run any command without asking, like --dangerously-skip-permissions.' : 'Edits only: Claude can read and edit files, but commands that need permission are declined.';
   });
